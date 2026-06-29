@@ -1462,11 +1462,9 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
           skip: skip,
           order: 'dateDesc',
         };
-        // archive эндпоинт не принимает dateFrom/dateTo
-        if (!extraParams.skipDateFilter) {
-          params.dateFrom = rfcFrom;
-          params.dateTo   = rfcTo;
-        }
+        // НЕ передаём dateFrom/dateTo в URL — они содержат ':' которые
+        // после двойного encodeURIComponent приходят к WB как %3A
+        // Фильтрацию по дате делаем на клиенте
         delete params.skipDateFilter;
         json = await fetchPage(endpoint, params);
       } catch (e) {
