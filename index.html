@@ -1401,79 +1401,77 @@ function loadSettings() {
 
 // ─── API ───────────────────────────────────────────────────
 async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
-  const allReviews = [];
+  // Согласно документации WB API (feedbacks-api.wildberries.ru):
+  // GET /api/v1/feedbacks
+  // isAnswered — ОБЯЗАТЕЛЬНЫЙ параметр: true = отвеченные, false = неотвеченные
+  // Чтобы получить ВСЕ отзывы — делаем два запроса и объединяем
+
   const proxyBase = proxyUrl.replace(/\/$/, '');
-
-  showLoading('Загрузка отзывов...', '');
-
-  // WB Feedbacks API — тянем ВСЕ отзывы (и отвеченные, и нет), постранично
-  // Правильный эндпоинт: GET /api/v1/feedbacks
-  // Параметры: isAnswered не передаём — чтобы получить все
-  // take: макс 10000 за раз, skip — смещение
-
-  const TAKE = 5000;
-  let skip = 0;
-  let page = 1;
-  let hasMore = true;
-
   const from = new Date(dateFrom + 'T00:00:00');
   const to   = new Date(dateTo   + 'T23:59:59');
 
-  while (hasMore) {
-    updateLoadingProgress(`Загружено: ${allReviews.length} отзывов (страница ${page})`);
+  showLoading('Загрузка отзывов...', '');
 
-    // Строим target URL — БЕЗ isAnswered, чтобы тянуть все отзывы
-    const targetUrl = `https://feedbacks-api.wildberries.ru/api/v1/feedbacks?take=${TAKE}&skip=${skip}&order=dateDesc`;
-    const url = `${proxyBase}/?url=${encodeURIComponent(targetUrl)}`;
+  const allReviews = [];
 
-    let json;
-    try {
-      const res = await fetch(url, {
-        headers: { 'Authorization': token }
-      });
+  // Тянем оба типа: неотвеченные (false) и отвеченные (true)
+  for (const isAnswered of [false, true]) {
+    const label = isAnswered ? 'отвеченные' : 'неотвеченные';
+    let skip = 0;
+    const TAKE = 5000;
+    let page = 1;
 
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
+    while (true) {
+      updateLoadingProgress(`${label}: загружено ${allReviews.length} (стр. ${page})`);
+
+      const targetUrl =
+        `https://feedbacks-api.wildberries.ru/api/v1/feedbacks` +
+        `?isAnswered=${isAnswered}&take=${TAKE}&skip=${skip}&order=dateDesc` +
+        `&dateFrom=${dateFrom}T00:00:00&dateTo=${dateTo}T23:59:59`;
+
+      const url = `${proxyBase}/?url=${encodeURIComponent(targetUrl)}`;
+
+      let json;
+      try {
+        const res = await fetch(url, {
+          headers: { 'Authorization': token }
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
+        }
+        json = await res.json();
+      } catch (e) {
+        if (allReviews.length === 0 && !isAnswered) throw e;
+        break;
       }
 
-      json = await res.json();
-    } catch (e) {
-      if (allReviews.length === 0) throw e; // первая страница — пробрасываем ошибку
-      break; // последующие — просто останавливаемся
-    }
+      // Парсим ответ — WB возвращает { data: { feedbacks: [...] } }
+      let feedbacks = null;
+      if (Array.isArray(json?.data?.feedbacks))  feedbacks = json.data.feedbacks;
+      else if (Array.isArray(json?.data))        feedbacks = json.data;
+      else if (Array.isArray(json?.feedbacks))   feedbacks = json.feedbacks;
+      else if (Array.isArray(json))              feedbacks = json;
 
-    // WB может вернуть данные в разных обёртках
-    let feedbacks = null;
-    if (Array.isArray(json))                        feedbacks = json;
-    else if (Array.isArray(json?.data?.feedbacks))  feedbacks = json.data.feedbacks;
-    else if (Array.isArray(json?.data))             feedbacks = json.data;
-    else if (Array.isArray(json?.feedbacks))        feedbacks = json.feedbacks;
-    else if (Array.isArray(json?.result))           feedbacks = json.result;
+      if (!feedbacks || feedbacks.length === 0) break;
 
-    if (!feedbacks || feedbacks.length === 0) break;
-
-    // Фильтрация по дате — берём всё что попадает в период
-    let gotOld = false;
-    for (const r of feedbacks) {
-      const d = new Date(r.createdDate || r.updatedDate || r.date || '');
-      if (d >= from && d <= to) {
-        allReviews.push(r);
+      // Фильтруем по дате на клиенте (WB иногда игнорирует dateFrom/dateTo)
+      let gotOlder = false;
+      for (const r of feedbacks) {
+        const d = new Date(r.createdDate || r.updatedDate || '');
+        if (d >= from && d <= to) allReviews.push(r);
+        if (d < from) gotOlder = true;
       }
-      // Если отзыв старше dateFrom и сортировка по убыванию — дальше только старее
-      if (d < from) gotOld = true;
+
+      // Если дошли до отзывов старше периода — дальше нет смысла
+      if (gotOlder) break;
+      // Если страница неполная — конец
+      if (feedbacks.length < TAKE) break;
+
+      skip += TAKE;
+      page++;
+      if (skip > 500000) break;
     }
-
-    // Если дошли до отзывов старше периода — останавливаемся
-    if (gotOld) break;
-
-    // Если страница неполная — это конец
-    if (feedbacks.length < TAKE) break;
-
-    skip += TAKE;
-    page++;
-
-    if (skip > 500000) break; // защита
   }
 
   return allReviews;
