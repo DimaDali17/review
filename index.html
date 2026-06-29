@@ -1433,12 +1433,14 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
     }
     const qs = parts.join('&');
     const targetUrl = `https://feedbacks-api.wildberries.ru${endpoint}?${qs}`;
-    const url = `${proxyBase}/?url=${encodeURIComponent(targetUrl)}`;
+    // Передаём токен через URL-параметр — надёжнее чем заголовки через Cloudflare
+    const url = `${proxyBase}/?token=${encodeURIComponent(token)}&url=${encodeURIComponent(targetUrl)}`;
 
     const res = await fetch(url, { headers: { 'Authorization': token, 'X-WB-Token': token } });
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
+      const tokenPreview = token ? token.slice(0, 20) + '...' : 'ПУСТО';
+      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)} [токен: ${tokenPreview}]`);
     }
     return res.json();
   }
@@ -1468,6 +1470,7 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
         delete params.skipDateFilter;
         json = await fetchPage(endpoint, params);
       } catch (e) {
+        if (e.message.includes('401')) throw e; // неверный токен — стоп
         if (allReviews.length === 0 && page === 1) throw e;
         break;
       }
