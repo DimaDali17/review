@@ -1434,7 +1434,7 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
       let json;
       try {
         const res = await fetch(url, {
-          headers: { 'Authorization': token }
+          headers: { 'X-WB-Token': token }
         });
         if (!res.ok) {
           const txt = await res.text();
