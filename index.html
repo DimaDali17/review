@@ -1,0 +1,2460 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EasyForm · Аналитика отзывов WB</title>
+  <style>
+/* ═══════════════════════════════════════════════════════════
+   EasyForm · Аналитика отзывов WB
+   Style: light beige / card / minimal / monospace labels
+═══════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #EDE8DF;
+  --bg2:        #E6E0D4;
+  --card:       #FAF8F4;
+  --card2:      #F3F0EA;
+  --border:     #D8D2C6;
+  --border2:    #C8C2B4;
+  --ink:        #1A1814;
+  --ink2:       #4A4640;
+  --ink3:       #7A7570;
+  --accent:     #1A1814;
+  --green:      #2E7D52;
+  --green-bg:   #EAF4EE;
+  --red:        #C0392B;
+  --red-bg:     #FDECEA;
+  --amber:      #B8860B;
+  --amber-bg:   #FEF9E7;
+  --blue:       #1A5276;
+  --blue-bg:    #EAF2FB;
+  --radius:     14px;
+  --radius-sm:  8px;
+  --shadow:     0 2px 12px rgba(0,0,0,0.07);
+  --shadow-md:  0 4px 24px rgba(0,0,0,0.10);
+  --font-mono:  'Courier New', Courier, monospace;
+  --font-sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --transition: 0.18s ease;
+}
+
+html { font-family: var(--font-sans); font-size: 15px; color: var(--ink); background: var(--bg); }
+body { min-height: 100vh; }
+
+/* ─── SCREENS ─── */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ══════════════════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════════════════ */
+#loginScreen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 20px;
+}
+
+.login-card {
+  background: var(--card);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  padding: 40px 48px;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-icon {
+  width: 52px; height: 52px;
+  background: var(--ink);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+.logo-icon.small {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.logo-text h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.logo-text p {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--green-bg);
+  border: 1px solid #BCDECB;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--green);
+}
+.status-dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: var(--ink3);
+}
+.form-group input,
+.form-group select {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--transition);
+  width: 100%;
+}
+.form-group input:focus,
+.form-group select:focus { border-color: var(--ink); }
+.form-hint {
+  font-size: 12px;
+  color: var(--ink3);
+}
+.form-hint a { color: var(--ink); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 15px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: opacity var(--transition), transform var(--transition);
+}
+.btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.error-msg {
+  background: var(--red-bg);
+  border: 1px solid #F1948A;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--red);
+}
+
+/* ══════════════════════════════════════════
+   TOP NAV
+══════════════════════════════════════════ */
+.topnav {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 60px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.nav-title {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+}
+
+.nav-filters {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.period-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.preset-btn:hover { border-color: var(--ink2); color: var(--ink); }
+.preset-btn.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.custom-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.custom-period input[type="date"] {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+}
+.btn-apply {
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.btn-refresh {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-refresh:hover { border-color: var(--ink2); }
+.btn-logout {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink3);
+  transition: all var(--transition);
+}
+.btn-logout:hover { color: var(--red); border-color: var(--red); }
+
+/* ══════════════════════════════════════════
+   TABS
+══════════════════════════════════════════ */
+.tabs-bar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* ══════════════════════════════════════════
+   CONTENT
+══════════════════════════════════════════ */
+.dashboard-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ══════════════════════════════════════════
+   KPI GRID
+══════════════════════════════════════════ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.kpi-card.kpi-good { background: var(--green-bg); border-color: #BCDECB; }
+.kpi-card.kpi-bad  { background: var(--red-bg);   border-color: #F1948A; }
+.kpi-card.kpi-danger { background: var(--amber-bg); border-color: #F9E79F; }
+
+.kpi-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.kpi-sub {
+  font-size: 18px;
+  margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════
+   CHARTS
+══════════════════════════════════════════ */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.chart-card.wide { grid-column: span 2; }
+.chart-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+canvas { max-height: 240px; }
+
+/* ══════════════════════════════════════════
+   REVIEWS
+══════════════════════════════════════════ */
+.reviews-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.filter-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.filter-group select,
+.filter-group input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  cursor: pointer;
+}
+.filter-group select:hover,
+.filter-group input:hover { border-color: var(--ink2); }
+.reviews-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+  white-space: nowrap;
+}
+
+.reviews-list { display: flex; flex-direction: column; gap: 12px; }
+
+.review-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  transition: border-color var(--transition);
+}
+.review-card:hover { border-color: var(--border2); }
+.review-card.negative { border-left: 3px solid var(--red); }
+.review-card.positive { border-left: 3px solid var(--green); }
+.review-card.neutral  { border-left: 3px solid var(--amber); }
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.review-stars { font-size: 16px; }
+.review-date  {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+.review-article {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  color: var(--ink2);
+}
+.review-badges {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.badge-photo { background: var(--blue-bg); color: var(--blue); }
+.badge-video { background: var(--amber-bg); color: var(--amber); }
+.badge-replied { background: var(--green-bg); color: var(--green); }
+
+.review-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.review-text mark {
+  background: #FFF176;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.review-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink3);
+}
+.review-meta span { display: flex; align-items: center; gap: 3px; }
+
+.review-reply {
+  margin-top: 10px;
+  background: var(--card2);
+  border-left: 3px solid var(--border2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.5;
+}
+.review-reply-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--ink3);
+  margin-bottom: 4px;
+}
+
+.review-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.review-photos img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+.review-photos img:hover { transform: scale(1.05); }
+
+.load-more-wrap { text-align: center; margin-top: 20px; }
+.btn-load-more {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 28px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-load-more:hover { border-color: var(--ink2); }
+
+/* ══════════════════════════════════════════
+   PRODUCTS TABLE
+══════════════════════════════════════════ */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.table-toolbar input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  width: 240px;
+}
+.sort-info {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+}
+
+.table-wrap { overflow-x: auto; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.data-table th {
+  background: var(--card2);
+  padding: 13px 16px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+.data-table th.sortable { cursor: pointer; }
+.data-table th.sortable:hover { background: var(--bg2); color: var(--ink); }
+.sort-arrow { margin-left: 4px; }
+.data-table td {
+  padding: 13px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg2); }
+
+.rating-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.mini-bar {
+  width: 60px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mini-bar-fill { height: 100%; border-radius: 3px; }
+.bar-red { background: var(--red); }
+.bar-green { background: var(--green); }
+
+.btn-detail {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-detail:hover { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+/* ══════════════════════════════════════════
+   TEXT ANALYSIS
+══════════════════════════════════════════ */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.analysis-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.analysis-card.full { grid-column: span 2; }
+.analysis-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.word-cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.word-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+.word-row:hover { background: var(--bg2); }
+.word-name {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 120px;
+  color: var(--ink);
+}
+.word-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink3);
+  min-width: 40px;
+  text-align: right;
+}
+.word-bar-wrap { flex: 1; }
+.word-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink);
+  opacity: 0.25;
+  transition: opacity var(--transition);
+}
+.word-row:hover .word-bar { opacity: 0.5; }
+.word-row.neg-word .word-bar { background: var(--red); opacity: 0.5; }
+.word-row.pos-word .word-bar { background: var(--green); opacity: 0.5; }
+
+.word-detail-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 600px;
+  height: 100vh;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 30px rgba(0,0,0,0.12);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wdp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 16px;
+}
+.wdp-header button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--ink3);
+}
+.wdp-stats {
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.6;
+}
+#wdpReviews {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 22px;
+}
+
+/* ══════════════════════════════════════════
+   SEARCH
+══════════════════════════════════════════ */
+.search-hero {
+  margin-bottom: 24px;
+}
+.search-input-big {
+  width: 100%;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  font-size: 16px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  box-shadow: var(--shadow);
+}
+.search-input-big:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(26,24,20,0.06);
+}
+
+.search-meta {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  font-size: 14px;
+  color: var(--ink2);
+  line-height: 1.6;
+  box-shadow: var(--shadow);
+}
+.search-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px;
+  color: var(--ink3);
+  font-size: 14px;
+}
+
+/* ══════════════════════════════════════════
+   PRODUCT MODAL
+══════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 30px 16px;
+}
+.modal-box {
+  background: var(--bg);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 900px;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.modal-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h2 { font-size: 18px; font-weight: 700; }
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--ink3);
+  transition: color var(--transition);
+}
+.modal-close:hover { color: var(--ink); }
+.modal-body { padding: 24px 26px; }
+.modal-reviews-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin: 20px 0 12px;
+}
+
+/* ══════════════════════════════════════════
+   LOADING
+══════════════════════════════════════════ */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(237,232,223,0.85);
+  backdrop-filter: blur(8px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loading-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 50px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 280px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-progress {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+#loadingMsg { font-size: 14px; color: var(--ink2); }
+
+/* ══════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .charts-grid { grid-template-columns: 1fr 1fr; }
+  .chart-card.wide { grid-column: span 2; }
+  .analysis-grid { grid-template-columns: 1fr; }
+  .analysis-card.full { grid-column: span 1; }
+  .search-charts { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .login-card { padding: 28px 24px; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .chart-card.wide { grid-column: span 1; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .topnav { height: auto; padding: 12px 16px; gap: 10px; }
+  .dashboard-content { padding: 14px; }
+  .word-detail-panel { width: 100%; }
+  .form-row { grid-template-columns: 1fr; }
+}
+
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ LOGIN SCREEN ═══════════════════════════════ -->
+<div id="loginScreen" class="screen active">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="logo-icon">
+        <span>Ef</span>
+      </div>
+      <div class="logo-text">
+        <h1>EasyForm</h1>
+        <p>WILDBERRIES · АНАЛИТИКА ОТЗЫВОВ</p>
+      </div>
+    </div>
+
+    <div class="status-badge">
+      <span class="status-dot"></span>
+      Данные через Cloudflare Worker прокси
+    </div>
+
+    <div class="form-group">
+      <label>API ТОКЕН WB (ОТЗЫВЫ)</label>
+      <input type="password" id="apiToken" placeholder="••••••••••••••••••••••••••••••••••" autocomplete="off" />
+    </div>
+
+    <div class="form-group">
+      <label>URL ПРОКСИ (CLOUDFLARE WORKER)</label>
+      <input type="text" id="proxyUrl" placeholder="https://wb-proxy.ooo6311ooo.workers.dev" />
+      <span class="form-hint">Нет прокси? <a href="https://developers.cloudflare.com/workers/" target="_blank">Создай бесплатно на Cloudflare</a></span>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>ПЕРИОД С</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div class="form-group">
+        <label>ПЕРИОД ПО</label>
+        <input type="date" id="dateTo" />
+      </div>
+    </div>
+
+    <button class="btn-primary" id="loadBtn" onclick="loadDashboard()">
+      Загрузить дашборд
+    </button>
+
+    <div id="loginError" class="error-msg" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN DASHBOARD ═══════════════════════════════ -->
+<div id="dashboardScreen" class="screen">
+
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <div class="nav-brand">
+      <div class="logo-icon small">
+        <span>Ef</span>
+      </div>
+      <span class="nav-title">EasyForm · Отзывы WB</span>
+    </div>
+
+    <div class="nav-filters">
+      <div class="period-presets">
+        <button class="preset-btn" data-days="1">Сегодня</button>
+        <button class="preset-btn" data-days="7">7 дней</button>
+        <button class="preset-btn active" data-days="30">30 дней</button>
+        <button class="preset-btn" data-days="90">90 дней</button>
+        <button class="preset-btn" data-year="current">2026</button>
+        <button class="preset-btn" data-year="prev">2025</button>
+        <button class="preset-btn" data-days="0" id="customPeriodBtn">Свой период</button>
+      </div>
+      <div class="custom-period" id="customPeriod" style="display:none">
+        <input type="date" id="navDateFrom" />
+        <span>—</span>
+        <input type="date" id="navDateTo" />
+        <button class="btn-apply" onclick="applyCustomPeriod()">Применить</button>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn-refresh" id="refreshBtn" onclick="refreshData()">
+        ↻ Обновить
+      </button>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </nav>
+
+  <!-- TABS -->
+  <div class="tabs-bar">
+    <button class="tab active" data-tab="overview" onclick="switchTab('overview')">Обзор</button>
+    <button class="tab" data-tab="reviews" onclick="switchTab('reviews')">Отзывы</button>
+    <button class="tab" data-tab="products" onclick="switchTab('products')">Товары</button>
+    <button class="tab" data-tab="textanalysis" onclick="switchTab('textanalysis')">Текстовый анализ</button>
+    <button class="tab" data-tab="search" onclick="switchTab('search')">Поиск</button>
+  </div>
+
+  <div class="dashboard-content">
+
+    <!-- ────────── TAB: OVERVIEW ────────── -->
+    <div id="tab-overview" class="tab-content active">
+
+      <!-- KPI Row -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Всего отзывов</div>
+          <div class="kpi-value" id="kpiTotal">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">За период</div>
+          <div class="kpi-value" id="kpiPeriod">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Средняя оценка</div>
+          <div class="kpi-value" id="kpiAvg">—</div>
+          <div class="kpi-sub" id="kpiStars"></div>
+        </div>
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-label">Без ответа</div>
+          <div class="kpi-value" id="kpiNoReply">—</div>
+        </div>
+        <div class="kpi-card kpi-bad">
+          <div class="kpi-label">Негативных</div>
+          <div class="kpi-value" id="kpiNeg">—</div>
+        </div>
+        <div class="kpi-card kpi-good">
+          <div class="kpi-label">Позитивных</div>
+          <div class="kpi-value" id="kpiPos">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">С фото</div>
+          <div class="kpi-value" id="kpiPhoto">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">С видео</div>
+          <div class="kpi-value" id="kpiVideo">—</div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="charts-grid">
+        <div class="chart-card wide">
+          <div class="chart-title">Отзывы по дням</div>
+          <canvas id="chartTimeline"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Распределение оценок</div>
+          <canvas id="chartRatings"></canvas>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">ТОП товаров по негативу</div>
+          <canvas id="chartTopNeg"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">ТОП проблем</div>
+          <canvas id="chartTopProblems"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Динамика средней оценки</div>
+          <canvas id="chartAvgRating"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────── TAB: REVIEWS ────────── -->
+    <div id="tab-reviews" class="tab-content">
+      <div class="reviews-toolbar">
+        <div class="filter-group">
+          <select id="filterRating" onchange="applyFilters()">
+            <option value="">Любая оценка</option>
+            <option value="5">⭐⭐⭐⭐⭐ 5</option>
+            <option value="4">⭐⭐⭐⭐ 4</option>
+            <option value="3">⭐⭐⭐ 3</option>
+            <option value="2">⭐⭐ 2</option>
+            <option value="1">⭐ 1</option>
+          </select>
+          <select id="filterSentiment" onchange="applyFilters()">
+            <option value="">Все отзывы</option>
+            <option value="positive">Только позитив (4–5★)</option>
+            <option value="negative">Только негатив (1–3★)</option>
+          </select>
+          <select id="filterPhoto" onchange="applyFilters()">
+            <option value="">Любые</option>
+            <option value="1">С фото</option>
+            <option value="0">Без фото</option>
+          </select>
+          <select id="filterVideo" onchange="applyFilters()">
+            <option value="">С видео / без</option>
+            <option value="1">С видео</option>
+          </select>
+          <select id="filterReply" onchange="applyFilters()">
+            <option value="">Все</option>
+            <option value="0">Без ответа продавца</option>
+            <option value="1">С ответом продавца</option>
+          </select>
+          <input type="text" id="filterArticle" placeholder="Артикул..." oninput="applyFilters()" style="width:140px" />
+        </div>
+        <div class="reviews-count" id="reviewsCount">—</div>
+      </div>
+
+      <div id="reviewsList" class="reviews-list"></div>
+      <div class="load-more-wrap">
+        <button class="btn-load-more" id="loadMoreBtn" onclick="loadMoreReviews()" style="display:none">
+          Загрузить ещё
+        </button>
+      </div>
+    </div>
+
+    <!-- ────────── TAB: PRODUCTS ────────── -->
+    <div id="tab-products" class="tab-content">
+      <div class="table-toolbar">
+        <input type="text" id="productSearch" placeholder="Поиск по артикулу..." oninput="renderProductsTable()" />
+        <div class="sort-info" id="sortInfo">Сортировка: по кол-ву ↓</div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="productsTable">
+          <thead>
+            <tr>
+              <th onclick="sortProducts('article')" class="sortable">Артикул <span class="sort-arrow" id="sort-article"></span></th>
+              <th onclick="sortProducts('count')" class="sortable">Отзывов <span class="sort-arrow" id="sort-count">↓</span></th>
+              <th onclick="sortProducts('avg')" class="sortable">Ср. оценка <span class="sort-arrow" id="sort-avg"></span></th>
+              <th onclick="sortProducts('neg')" class="sortable">% негативных <span class="sort-arrow" id="sort-neg"></span></th>
+              <th onclick="sortProducts('pos')" class="sortable">% позитивных <span class="sort-arrow" id="sort-pos"></span></th>
+              <th>Детали</th>
+            </tr>
+          </thead>
+          <tbody id="productsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ────────── TAB: TEXT ANALYSIS ────────── -->
+    <div id="tab-textanalysis" class="tab-content">
+      <div class="analysis-grid">
+        <div class="analysis-card">
+          <div class="analysis-title">🔴 ТОП проблем (негативные отзывы)</div>
+          <div class="word-cloud" id="negWordCloud"></div>
+        </div>
+        <div class="analysis-card">
+          <div class="analysis-title">🟢 ТОП плюсов (позитивные отзывы)</div>
+          <div class="word-cloud" id="posWordCloud"></div>
+        </div>
+      </div>
+      <div class="analysis-grid">
+        <div class="analysis-card full">
+          <div class="analysis-title">Все частые слова (все отзывы)</div>
+          <div class="word-cloud" id="allWordCloud"></div>
+        </div>
+      </div>
+
+      <!-- Word detail modal inline -->
+      <div id="wordDetailPanel" class="word-detail-panel" style="display:none">
+        <div class="wdp-header">
+          <span id="wdpTitle"></span>
+          <button onclick="closeWordDetail()">✕</button>
+        </div>
+        <div class="wdp-stats" id="wdpStats"></div>
+        <div id="wdpReviews" class="reviews-list"></div>
+      </div>
+    </div>
+
+    <!-- ────────── TAB: SEARCH ────────── -->
+    <div id="tab-search" class="tab-content">
+      <div class="search-hero">
+        <input type="text" id="mainSearch" class="search-input-big"
+          placeholder="Введите слово или часть слова... (например: дырк, резинк, катыш)"
+          oninput="performSearch()" />
+      </div>
+
+      <div id="searchResults" style="display:none">
+        <div class="search-meta" id="searchMeta"></div>
+
+        <div class="search-charts">
+          <div class="chart-card">
+            <div class="chart-title">Распределение по товарам</div>
+            <canvas id="chartSearchArticles"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Динамика по времени</div>
+            <canvas id="chartSearchTime"></canvas>
+          </div>
+        </div>
+
+        <div id="searchReviewsList" class="reviews-list"></div>
+      </div>
+      <div id="searchEmpty" class="empty-state" style="display:none">
+        Ничего не найдено по вашему запросу
+      </div>
+    </div>
+
+  </div><!-- /dashboard-content -->
+</div><!-- /dashboardScreen -->
+
+<!-- ═══════════════════════════════ PRODUCT MODAL ═══════════════════════════════ -->
+<div id="productModal" class="modal-overlay" style="display:none" onclick="closeProductModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modalTitle">Товар</h2>
+      <button class="modal-close" onclick="closeProductModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="kpi-grid" id="modalKpis"></div>
+      <div class="charts-grid" style="margin-top:20px">
+        <div class="chart-card">
+          <div class="chart-title">Динамика оценки</div>
+          <canvas id="modalChartRating"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Отзывы по дням</div>
+          <canvas id="modalChartTimeline"></canvas>
+        </div>
+      </div>
+      <div class="analysis-grid" style="margin-top:20px">
+        <div class="analysis-card">
+          <div class="analysis-title">🔴 Частые жалобы</div>
+          <div class="word-cloud" id="modalNegWords"></div>
+        </div>
+        <div class="analysis-card">
+          <div class="analysis-title">🟢 Частые плюсы</div>
+          <div class="word-cloud" id="modalPosWords"></div>
+        </div>
+      </div>
+      <div class="modal-reviews-title">Все отзывы по товару</div>
+      <div id="modalReviews" class="reviews-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div id="loadingMsg">Загрузка отзывов...</div>
+    <div id="loadingProgress" class="loading-progress"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   EasyForm · Аналитика отзывов WB
+   script.js — полная логика дашборда
+═══════════════════════════════════════════════════════════ */
+
+'use strict';
+
+// ─── STATE ────────────────────────────────────────────────
+const STATE = {
+  apiToken:   '',
+  proxyUrl:   '',
+  allReviews: [],       // сырые данные с WB
+  filtered:   [],       // после фильтров
+  dateFrom:   null,
+  dateTo:     null,
+  charts:     {},
+  sortCol:    'count',
+  sortDir:    -1,
+  reviewPage: 0,
+  PAGE_SIZE:  30,
+  wordIndex:  {},       // stemmed word → [reviewIdx]
+  stems:      [],       // parallel array to allReviews: токены для каждого
+  searchChart1: null,
+  searchChart2: null,
+};
+
+// ─── RUSSIAN STEMMER (Porter-like for Russian) ────────────
+// Упрощённая русская стемминг-функция
+const VOWELS = 'аеёиоуыьъэюя';
+const PREFIXES_IGNORE = new Set([
+  'в','на','по','за','из','у','к','с','о','об','до','от','для','со','ко','при','пред','над','под','из','без','через',
+  'не','ни','же','бы','ли','да','но','и','а','или','что','как','так','то','это',
+  'мне','мы','вы','он','она','оно','они','его','её','их','им','ей','нам','вам','ним','ей','их','нас','вас',
+  'все','весь','этот','эта','эти','то','такой','такая','такие','такое',
+  'уже','ещё','ещё','тоже','тут','там','где','когда','очень','просто','только','даже','вот','вообще',
+  'потому','потом','сначала','сразу','всего','всегда','иногда','никогда','никак','всё','нет','был','было','была','были',
+  'есть','будет','буду','будут','будем','будете',
+  'получил','получила','получили','товар','заказ','продавец','магазин','качество','размер','цена',
+]);
+
+function stem(word) {
+  word = word.toLowerCase().replace(/ё/g, 'е');
+  if (word.length < 4) return word;
+
+  // Убираем рефлексивные суффиксы -ся/-сь
+  word = word.replace(/(ся|сь)$/, '');
+
+  // Убираем окончания прилагательных
+  word = word.replace(/(ими|ыми|ого|его|ому|ему|ую|юю|ая|яя|ые|ие|ых|их|ой|ей|ий|ый)$/, '');
+
+  // Убираем глагольные окончания
+  word = word.replace(/(ывать|ивать|овать|евать|ывает|ивает|ивают|ывают|овает|евает|оваться|еваться|ываться|иваться)$/, '');
+  word = word.replace(/(ишь|ешь|ете|ите|ем|им|ют|ят|ует|ует|уют)$/, '');
+  word = word.replace(/(ть|ти|чь)$/, '');
+  word = word.replace(/(ал|яла|ило|ила|али|яли|ело|ела|ели|яло|ало|ыло|ыла|ыли)$/, '');
+
+  // Убираем существительные окончания
+  word = word.replace(/(ами|ями|ах|ях|ов|ев|ий|ий|ье|ья|ей|ий|ий)$/, '');
+  word = word.replace(/(ам|ям|ом|ем|ах|ях|е|и|у|ю|а|я|ы)$/, '');
+
+  // Убираем суффиксы
+  word = word.replace(/(ость|есть|ств|ск|к)$/, '');
+  word = word.replace(/(н|щ|ч|ш|щ)$/, '');
+
+  return word.length >= 3 ? word : word;
+}
+
+function tokenize(text) {
+  if (!text) return [];
+  return text.toLowerCase()
+    .replace(/[^а-яёa-z0-9\s\-]/g, ' ')
+    .split(/[\s\-]+/)
+    .filter(w => w.length >= 3)
+    .filter(w => !PREFIXES_IGNORE.has(w))
+    .map(stem)
+    .filter(w => w.length >= 3 && !PREFIXES_IGNORE.has(w));
+}
+
+// ─── DATE HELPERS ─────────────────────────────────────────
+function dateStr(d) {
+  return d.toISOString().split('T')[0];
+}
+function parseDate(str) {
+  return new Date(str + 'T00:00:00');
+}
+function formatDate(str) {
+  if (!str) return '—';
+  const d = new Date(str);
+  return d.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function setDefaultDates() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  document.getElementById('dateFrom').value = dateStr(from);
+  document.getElementById('dateTo').value   = dateStr(to);
+}
+
+// ─── STORAGE ──────────────────────────────────────────────
+function saveSettings() {
+  try {
+    localStorage.setItem('ef_token',  STATE.apiToken);
+    localStorage.setItem('ef_proxy',  STATE.proxyUrl);
+    localStorage.setItem('ef_from',   dateStr(STATE.dateFrom));
+    localStorage.setItem('ef_to',     dateStr(STATE.dateTo));
+  } catch(e) {}
+}
+function loadSettings() {
+  try {
+    const t = localStorage.getItem('ef_token');
+    const p = localStorage.getItem('ef_proxy');
+    const f = localStorage.getItem('ef_from');
+    const to = localStorage.getItem('ef_to');
+    if (t) document.getElementById('apiToken').value = t;
+    if (p) document.getElementById('proxyUrl').value = p;
+    if (f) document.getElementById('dateFrom').value = f;
+    if (to) document.getElementById('dateTo').value  = to;
+  } catch(e) {}
+}
+
+// ─── API ───────────────────────────────────────────────────
+async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
+  const allReviews = [];
+  let skip = 0;
+  const limit = 5000; // WB позволяет до 10000 за раз
+  let page = 1;
+
+  showLoading('Загрузка отзывов...', '');
+
+  while (true) {
+    updateLoadingProgress(`Загружено: ${allReviews.length} отзывов (страница ${page})`);
+
+    const params = new URLSearchParams({
+      isAnswered:  'false',
+      take:         limit,
+      skip:         skip,
+      order:       'dateDesc',
+    });
+
+    // Строим URL через прокси
+    const targetUrl = `https://feedbacks-api.wildberries.ru/api/v1/feedbacks?${params}`;
+    const proxyBase = proxyUrl.replace(/\/$/, '');
+    const url = `${proxyBase}/?url=${encodeURIComponent(targetUrl)}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`API Error ${res.status}: ${txt.slice(0,200)}`);
+      }
+
+      const json = await res.json();
+      const feedbacks = json?.data?.feedbacks || json?.feedbacks || json?.data || [];
+
+      if (!Array.isArray(feedbacks) || feedbacks.length === 0) break;
+
+      // Фильтруем по дате
+      const from = new Date(dateFrom + 'T00:00:00');
+      const to   = new Date(dateTo   + 'T23:59:59');
+
+      for (const r of feedbacks) {
+        const d = new Date(r.createdDate || r.updatedDate || '');
+        if (d >= from && d <= to) allReviews.push(r);
+        // Если дата отзыва раньше dateFrom — можно прекратить (сортировка dateDesc)
+        if (d < from && feedbacks.length === feedbacks.filter(x => new Date(x.createdDate||x.updatedDate) >= from).length) {
+          // продолжаем — может быть непоследовательно
+        }
+      }
+
+      // Если вернулось меньше лимита — это последняя страница
+      if (feedbacks.length < limit) break;
+
+      skip += limit;
+      page++;
+
+      // Защита от бесконечного цикла
+      if (skip > 500000) break;
+
+    } catch (e) {
+      // Пробуем второй эндпоинт WB
+      if (skip === 0) {
+        await fetchWBReviewsAlt(token, proxyUrl, dateFrom, dateTo, allReviews);
+      }
+      break;
+    }
+  }
+
+  return allReviews;
+}
+
+// Альтернативный эндпоинт — получаем всё
+async function fetchWBReviewsAlt(token, proxyUrl, dateFrom, dateTo, arr) {
+  try {
+    const params = new URLSearchParams({
+      isAnswered: 'false',
+      take: 10000,
+      skip: 0,
+      order: 'dateDesc',
+    });
+    const targetUrl = `https://feedbacks-api.wildberries.ru/api/v1/feedbacks?${params}`;
+    const proxyBase = proxyUrl.replace(/\/$/, '');
+
+    // Пробуем без isAnswered фильтра
+    const url2 = `${proxyBase}/?url=${encodeURIComponent(
+      'https://feedbacks-api.wildberries.ru/api/v1/feedbacks?take=10000&skip=0&order=dateDesc'
+    )}`;
+    const res = await fetch(url2, { headers: { 'Authorization': token } });
+    if (!res.ok) return;
+    const json = await res.json();
+    const feedbacks = json?.data?.feedbacks || json?.feedbacks || json?.data || [];
+    const from = new Date(dateFrom + 'T00:00:00');
+    const to   = new Date(dateTo + 'T23:59:59');
+    for (const r of feedbacks) {
+      const d = new Date(r.createdDate || r.updatedDate || '');
+      if (d >= from && d <= to) arr.push(r);
+    }
+  } catch(e) {}
+}
+
+// ─── LOAD DASHBOARD ───────────────────────────────────────
+async function loadDashboard() {
+  const token    = document.getElementById('apiToken').value.trim();
+  const proxy    = document.getElementById('proxyUrl').value.trim();
+  const dateFrom = document.getElementById('dateFrom').value;
+  const dateTo   = document.getElementById('dateTo').value;
+
+  if (!token || !proxy) {
+    showError('Укажите API токен и URL прокси');
+    return;
+  }
+  if (!dateFrom || !dateTo) {
+    showError('Укажите период дат');
+    return;
+  }
+
+  STATE.apiToken  = token;
+  STATE.proxyUrl  = proxy;
+  STATE.dateFrom  = parseDate(dateFrom);
+  STATE.dateTo    = parseDate(dateTo);
+
+  showLoading('Подключение к API...', '');
+  hideError();
+
+  try {
+    const reviews = await fetchWBReviews(token, proxy, dateFrom, dateTo);
+
+    if (reviews.length === 0) {
+      hideLoading();
+      showError('Отзывы не найдены за выбранный период. Проверьте токен и период.');
+      return;
+    }
+
+    STATE.allReviews = reviews;
+    saveSettings();
+    processData();
+    showScreen('dashboardScreen');
+    updateNavDates();
+
+  } catch (e) {
+    hideLoading();
+    showError(`Ошибка: ${e.message}`);
+  }
+}
+
+// ─── DEMO DATA (для разработки без реального API) ─────────
+function generateDemoData() {
+  const articles = ['12345678','87654321','11223344','99887766','55443322'];
+  const reviews = [];
+  const texts_neg = [
+    'Качество ужасное, дырка появилась через неделю. Резинка слабая, расползается.',
+    'Размер не соответствует, очень мало. Катышки после первой стирки, скатывается весь.',
+    'Просвечивает насквозь, очень тонкий материал. Короткие рукава, не по размеру.',
+    'Дырявый шов, расползся сразу. Жарко в нём, не дышит совсем.',
+    'Дырочку нашла на второй день. Цвет облез после стирки.',
+    'Резинка слетела сразу. Скатывается быстро, катышки огромные.',
+    'Не соответствует описанию. Дырявые швы, плохое качество.',
+    'Очень жарко, не дышит. Просвечивает на свету.',
+  ];
+  const texts_pos = [
+    'Отличное качество, мягкий материал! Размер точно по таблице.',
+    'Прекрасная вещь, советую всем! Быстрая доставка, хорошая упаковка.',
+    'Качество на высоте, ношу каждый день. Не катается, не линяет.',
+    'Супер товар! Соответствует описанию, красивый цвет.',
+    'Очень доволен покупкой. Материал приятный, не жарко.',
+    'Хорошее качество за свои деньги. Рекомендую.',
+  ];
+  const now = new Date();
+  for (let i = 0; i < 120; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - Math.floor(Math.random() * 60));
+    const isNeg = Math.random() < 0.4;
+    const rating = isNeg ? Math.ceil(Math.random() * 2) + 1 : (Math.random() < 0.7 ? 5 : 4);
+    const txt = isNeg
+      ? texts_neg[Math.floor(Math.random() * texts_neg.length)]
+      : texts_pos[Math.floor(Math.random() * texts_pos.length)];
+    reviews.push({
+      id: 'demo_' + i,
+      nmId: articles[Math.floor(Math.random() * articles.length)],
+      productValuation: rating,
+      createdDate: d.toISOString(),
+      text: txt,
+      pros: isNeg ? '' : 'Хорошее качество',
+      cons: isNeg ? 'Плохое качество' : '',
+      answer: Math.random() < 0.3 ? { text: 'Спасибо за отзыв! Будем улучшаться.' } : null,
+      photo: Math.random() < 0.25 ? [{ miniSize: '' }] : [],
+      video: Math.random() < 0.1 ? [{}] : [],
+    });
+  }
+  return reviews;
+}
+
+// ─── PROCESS DATA ─────────────────────────────────────────
+function processData() {
+  showLoading('Обработка данных...', '');
+
+  const reviews = STATE.allReviews;
+
+  // Строим индекс слов
+  STATE.wordIndex = {};
+  STATE.stems = [];
+
+  for (let i = 0; i < reviews.length; i++) {
+    const r = reviews[i];
+    const fullText = [r.text, r.pros, r.cons].filter(Boolean).join(' ');
+    const tokens = [...new Set(tokenize(fullText))];
+    STATE.stems.push(tokens);
+    for (const t of tokens) {
+      if (!STATE.wordIndex[t]) STATE.wordIndex[t] = [];
+      STATE.wordIndex[t].push(i);
+    }
+  }
+
+  STATE.filtered = [...reviews];
+  STATE.reviewPage = 0;
+
+  hideLoading();
+  renderAll();
+}
+
+// ─── RENDER ALL ───────────────────────────────────────────
+function renderAll() {
+  renderKPIs();
+  renderCharts();
+  renderReviews();
+  renderProductsTable();
+  renderTextAnalysis();
+}
+
+// ─── KPIs ─────────────────────────────────────────────────
+function renderKPIs() {
+  const r = STATE.filtered;
+  const total = STATE.allReviews.length;
+  const period = r.length;
+  const avgRaw = r.length ? r.reduce((s, x) => s + (x.productValuation||0), 0) / r.length : 0;
+  const avg = avgRaw.toFixed(1);
+
+  const neg = r.filter(x => (x.productValuation||0) <= 3).length;
+  const pos = r.filter(x => (x.productValuation||0) >= 4).length;
+  const noReply = r.filter(x => !x.answer?.text).length;
+  const photo = r.filter(x => (x.photo||[]).length > 0).length;
+  const video = r.filter(x => (x.video||[]).length > 0).length;
+
+  function pct(n) { return r.length ? Math.round(n / r.length * 100) + '%' : '0%'; }
+
+  set('kpiTotal',   total.toLocaleString('ru'));
+  set('kpiPeriod',  period.toLocaleString('ru'));
+  set('kpiAvg',     avg);
+  set('kpiStars',   '⭐'.repeat(Math.round(avgRaw)));
+  set('kpiNoReply', noReply.toLocaleString('ru'));
+  set('kpiNeg',     pct(neg));
+  set('kpiPos',     pct(pos));
+  set('kpiPhoto',   photo.toLocaleString('ru'));
+  set('kpiVideo',   video.toLocaleString('ru'));
+
+  function set(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+}
+
+// ─── CHARTS ───────────────────────────────────────────────
+function destroyChart(key) {
+  if (STATE.charts[key]) { STATE.charts[key].destroy(); STATE.charts[key] = null; }
+}
+
+const CHART_COLORS = {
+  ink:   '#1A1814',
+  red:   '#C0392B',
+  green: '#2E7D52',
+  amber: '#B8860B',
+  blue:  '#1A5276',
+  lines: ['#1A1814','#C0392B','#2E7D52','#B8860B','#1A5276'],
+};
+
+function chartDefaults() {
+  return {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { labels: { font: { family: 'Courier New', size: 11 }, color: '#7A7570' } },
+      tooltip: {
+        backgroundColor: '#FAF8F4',
+        titleColor: '#1A1814',
+        bodyColor: '#4A4640',
+        borderColor: '#D8D2C6',
+        borderWidth: 1,
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#7A7570', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      y: { ticks: { color: '#7A7570', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+    }
+  };
+}
+
+function renderCharts() {
+  const r = STATE.filtered;
+
+  // 1. Timeline
+  destroyChart('timeline');
+  const byDay = {};
+  for (const rv of r) {
+    const d = (rv.createdDate||rv.updatedDate||'').slice(0,10);
+    if (d) byDay[d] = (byDay[d]||0) + 1;
+  }
+  const days = Object.keys(byDay).sort();
+  {
+    const ctx = document.getElementById('chartTimeline')?.getContext('2d');
+    if (ctx) {
+      STATE.charts['timeline'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: days.map(d => d.slice(5)),
+          datasets: [{ label: 'Отзывы', data: days.map(d => byDay[d]),
+            backgroundColor: 'rgba(26,24,20,0.12)', borderColor: CHART_COLORS.ink,
+            borderWidth: 1, borderRadius: 3 }]
+        },
+        options: { ...chartDefaults(), plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+      });
+    }
+  }
+
+  // 2. Rating distribution
+  destroyChart('ratings');
+  const ratingCounts = [0,0,0,0,0];
+  for (const rv of r) { const v = (rv.productValuation||1); if (v>=1&&v<=5) ratingCounts[v-1]++; }
+  {
+    const ctx = document.getElementById('chartRatings')?.getContext('2d');
+    if (ctx) {
+      STATE.charts['ratings'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['★','★★','★★★','★★★★','★★★★★'],
+          datasets: [{ data: ratingCounts,
+            backgroundColor: ['#C0392B','#E74C3C','#F39C12','#2ECC71','#27AE60'],
+            borderWidth: 2, borderColor: '#FAF8F4' }]
+        },
+        options: { ...chartDefaults(), scales: undefined }
+      });
+    }
+  }
+
+  // 3. Top neg products
+  destroyChart('topNeg');
+  const byArticle = getArticleStats(r);
+  const topNeg = Object.entries(byArticle)
+    .sort((a,b) => b[1].neg - a[1].neg).slice(0, 8);
+  {
+    const ctx = document.getElementById('chartTopNeg')?.getContext('2d');
+    if (ctx) {
+      STATE.charts['topNeg'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: topNeg.map(x => x[0]),
+          datasets: [{ label: '% негативных', data: topNeg.map(x => Math.round(x[1].negPct)),
+            backgroundColor: 'rgba(192,57,43,0.6)', borderColor: CHART_COLORS.red, borderWidth: 1, borderRadius: 4 }]
+        },
+        options: { ...chartDefaults(), indexAxis: 'y',
+          plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+      });
+    }
+  }
+
+  // 4. Top problems
+  destroyChart('topProblems');
+  const negReviews = r.filter(x => (x.productValuation||0) <= 3);
+  const wf = getWordFreq(negReviews.map((_, i) => r.indexOf(negReviews[i])), 8);
+  {
+    const ctx = document.getElementById('chartTopProblems')?.getContext('2d');
+    if (ctx) {
+      STATE.charts['topProblems'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: wf.map(x => x.word),
+          datasets: [{ label: 'Упоминаний', data: wf.map(x => x.count),
+            backgroundColor: 'rgba(192,57,43,0.5)', borderColor: CHART_COLORS.red, borderWidth: 1, borderRadius: 4 }]
+        },
+        options: { ...chartDefaults(), indexAxis: 'y',
+          plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+      });
+    }
+  }
+
+  // 5. Avg rating over time
+  destroyChart('avgRating');
+  const byDayRating = {};
+  for (const rv of r) {
+    const d = (rv.createdDate||rv.updatedDate||'').slice(0,10);
+    if (!d) continue;
+    if (!byDayRating[d]) byDayRating[d] = { sum: 0, cnt: 0 };
+    byDayRating[d].sum += rv.productValuation||0;
+    byDayRating[d].cnt++;
+  }
+  const ratingDays = Object.keys(byDayRating).sort();
+  {
+    const ctx = document.getElementById('chartAvgRating')?.getContext('2d');
+    if (ctx) {
+      STATE.charts['avgRating'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ratingDays.map(d => d.slice(5)),
+          datasets: [{ label: 'Ср. оценка', data: ratingDays.map(d => +(byDayRating[d].sum/byDayRating[d].cnt).toFixed(2)),
+            borderColor: CHART_COLORS.green, backgroundColor: 'rgba(46,125,82,0.08)',
+            tension: 0.4, fill: true, pointRadius: 2 }]
+        },
+        options: { ...chartDefaults(),
+          scales: { ...chartDefaults().scales, y: { ...chartDefaults().scales.y, min: 1, max: 5 } } }
+      });
+    }
+  }
+}
+
+// ─── ARTICLE STATS ────────────────────────────────────────
+function getArticleStats(reviews) {
+  const map = {};
+  for (const rv of reviews) {
+    const art = String(rv.nmId || rv.article || 'unknown');
+    if (!map[art]) map[art] = { count:0, sum:0, neg:0, pos:0 };
+    map[art].count++;
+    map[art].sum += rv.productValuation||0;
+    if ((rv.productValuation||0) <= 3) map[art].neg++;
+    if ((rv.productValuation||0) >= 4) map[art].pos++;
+  }
+  for (const k in map) {
+    map[k].avg = map[k].count ? +(map[k].sum/map[k].count).toFixed(1) : 0;
+    map[k].negPct = map[k].count ? +(map[k].neg/map[k].count*100).toFixed(0) : 0;
+    map[k].posPct = map[k].count ? +(map[k].pos/map[k].count*100).toFixed(0) : 0;
+  }
+  return map;
+}
+
+// ─── WORD FREQUENCY ───────────────────────────────────────
+// indices — массив индексов в STATE.allReviews (или null для всех)
+function getWordFreq(indices, topN = 30) {
+  const freq = {};
+  const src = indices !== null ? indices : STATE.allReviews.map((_, i) => i);
+  for (const i of src) {
+    const tokens = STATE.stems[i] || [];
+    for (const t of tokens) {
+      freq[t] = (freq[t]||0) + 1;
+    }
+  }
+  return Object.entries(freq)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, topN)
+    .map(([word, count]) => ({ word, count }));
+}
+
+// ─── REVIEWS RENDER ───────────────────────────────────────
+function applyFilters() {
+  const rating    = document.getElementById('filterRating')?.value;
+  const sentiment = document.getElementById('filterSentiment')?.value;
+  const photo     = document.getElementById('filterPhoto')?.value;
+  const video     = document.getElementById('filterVideo')?.value;
+  const reply     = document.getElementById('filterReply')?.value;
+  const article   = document.getElementById('filterArticle')?.value.trim().toLowerCase();
+
+  STATE.filtered = STATE.allReviews.filter(rv => {
+    if (rating && String(rv.productValuation) !== rating) return false;
+    if (sentiment === 'positive' && (rv.productValuation||0) < 4) return false;
+    if (sentiment === 'negative' && (rv.productValuation||0) > 3) return false;
+    if (photo === '1' && (rv.photo||[]).length === 0) return false;
+    if (photo === '0' && (rv.photo||[]).length > 0) return false;
+    if (video === '1' && (rv.video||[]).length === 0) return false;
+    if (reply === '0' && rv.answer?.text) return false;
+    if (reply === '1' && !rv.answer?.text) return false;
+    if (article) {
+      const art = String(rv.nmId || rv.article || '').toLowerCase();
+      if (!art.includes(article)) return false;
+    }
+    return true;
+  });
+
+  STATE.reviewPage = 0;
+  renderKPIs();
+  renderCharts();
+  renderReviews();
+}
+
+function renderReviews(container, reviews, highlight) {
+  const listEl = container || document.getElementById('reviewsList');
+  const src    = reviews || STATE.filtered;
+  const page   = STATE.reviewPage;
+  const shown  = (page + 1) * STATE.PAGE_SIZE;
+  const slice  = src.slice(0, shown);
+
+  listEl.innerHTML = '';
+  for (const rv of slice) {
+    listEl.appendChild(makeReviewCard(rv, highlight));
+  }
+
+  const count = document.getElementById('reviewsCount');
+  if (count) count.textContent = `Показано: ${slice.length} из ${src.length}`;
+
+  const moreBtn = document.getElementById('loadMoreBtn');
+  if (moreBtn) moreBtn.style.display = shown < src.length ? 'inline-block' : 'none';
+}
+
+function loadMoreReviews() {
+  STATE.reviewPage++;
+  renderReviews();
+}
+
+function makeReviewCard(rv, highlight) {
+  const rating = rv.productValuation || 0;
+  const cls = rating >= 4 ? 'positive' : rating <= 2 ? 'negative' : 'neutral';
+  const stars = '⭐'.repeat(rating) + '☆'.repeat(5-rating);
+  const date  = formatDate((rv.createdDate||rv.updatedDate||'').slice(0,10));
+  const article = String(rv.nmId || rv.article || '—');
+  const text  = [rv.text, rv.pros ? `👍 ${rv.pros}` : '', rv.cons ? `👎 ${rv.cons}` : ''].filter(Boolean).join('\n\n');
+  const hasPhoto = (rv.photo||[]).length > 0;
+  const hasVideo = (rv.video||[]).length > 0;
+  const hasReply = !!rv.answer?.text;
+  const size  = rv.subjectName || rv.sizeOptionName || '';
+  const color = rv.colorName || '';
+
+  const card = document.createElement('div');
+  card.className = `review-card ${cls}`;
+
+  let textHtml = escHtml(text);
+  if (highlight) {
+    const words = highlight.trim().split(/\s+/).filter(Boolean);
+    for (const w of words) {
+      const re = new RegExp(`(${escRegex(w)})`, 'gi');
+      textHtml = textHtml.replace(re, '<mark>$1</mark>');
+    }
+  }
+
+  card.innerHTML = `
+    <div class="review-header">
+      <span class="review-stars">${stars}</span>
+      <span class="review-date">${date}</span>
+      <span class="review-article">${article}</span>
+      ${size ? `<span class="review-article">${escHtml(size)}</span>` : ''}
+      ${color ? `<span class="review-article">${escHtml(color)}</span>` : ''}
+      <div class="review-badges">
+        ${hasPhoto ? '<span class="badge badge-photo">📷 Фото</span>' : ''}
+        ${hasVideo ? '<span class="badge badge-video">🎬 Видео</span>' : ''}
+        ${hasReply ? '<span class="badge badge-replied">✅ Ответ</span>' : ''}
+      </div>
+    </div>
+    <div class="review-text">${textHtml}</div>
+    ${hasReply ? `<div class="review-reply"><div class="review-reply-label">ОТВЕТ ПРОДАВЦА</div>${escHtml(rv.answer.text)}</div>` : ''}
+    ${hasPhoto ? `<div class="review-photos">${(rv.photo||[]).slice(0,6).map(p => p.fullSize || p.miniSize ? `<img src="${escAttr(p.fullSize||p.miniSize||'')}" alt="фото" onerror="this.style.display='none'" />` : '').join('')}</div>` : ''}
+  `;
+  return card;
+}
+
+// ─── PRODUCTS TABLE ───────────────────────────────────────
+function renderProductsTable() {
+  const stats  = getArticleStats(STATE.filtered);
+  const search = (document.getElementById('productSearch')?.value||'').toLowerCase();
+
+  let rows = Object.entries(stats).map(([art, s]) => ({ article: art, ...s }));
+  if (search) rows = rows.filter(r => r.article.toLowerCase().includes(search));
+
+  const col = STATE.sortCol;
+  const dir = STATE.sortDir;
+  const colMap = { article:'article', count:'count', avg:'avg', neg:'negPct', pos:'posPct' };
+  rows.sort((a,b) => {
+    const key = colMap[col] || 'count';
+    return dir * (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0);
+  });
+
+  const tbody = document.getElementById('productsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escHtml(r.article)}</strong></td>
+      <td>${r.count}</td>
+      <td><div class="rating-bar"><span>${r.avg}</span></div></td>
+      <td>
+        <div class="rating-bar">
+          <div class="mini-bar"><div class="mini-bar-fill bar-red" style="width:${r.negPct}%"></div></div>
+          <span>${r.negPct}%</span>
+        </div>
+      </td>
+      <td>
+        <div class="rating-bar">
+          <div class="mini-bar"><div class="mini-bar-fill bar-green" style="width:${r.posPct}%"></div></div>
+          <span>${r.posPct}%</span>
+        </div>
+      </td>
+      <td><button class="btn-detail" onclick="openProduct('${escAttr(r.article)}')">Детали →</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  const si = document.getElementById('sortInfo');
+  if (si) si.textContent = `Сортировка: ${col} ${dir === -1 ? '↓' : '↑'}`;
+}
+
+function sortProducts(col) {
+  if (STATE.sortCol === col) STATE.sortDir *= -1;
+  else { STATE.sortCol = col; STATE.sortDir = -1; }
+  // Сбрасываем стрелки
+  ['article','count','avg','neg','pos'].forEach(c => {
+    const el = document.getElementById('sort-' + c);
+    if (el) el.textContent = '';
+  });
+  const el = document.getElementById('sort-' + col);
+  if (el) el.textContent = STATE.sortDir === -1 ? '↓' : '↑';
+  renderProductsTable();
+}
+
+// ─── TEXT ANALYSIS ────────────────────────────────────────
+function renderTextAnalysis() {
+  const negIdxs = STATE.filtered
+    .map((rv, i) => ({ rv, i: STATE.allReviews.indexOf(rv) }))
+    .filter(x => (x.rv.productValuation||0) <= 3)
+    .map(x => x.i);
+
+  const posIdxs = STATE.filtered
+    .map((rv, i) => ({ rv, i: STATE.allReviews.indexOf(rv) }))
+    .filter(x => (x.rv.productValuation||0) >= 4)
+    .map(x => x.i);
+
+  const allIdxs = STATE.filtered.map(rv => STATE.allReviews.indexOf(rv));
+
+  renderWordCloud('negWordCloud', getWordFreq(negIdxs, 30), 'neg');
+  renderWordCloud('posWordCloud', getWordFreq(posIdxs, 30), 'pos');
+  renderWordCloud('allWordCloud', getWordFreq(allIdxs, 40), 'all');
+}
+
+function renderWordCloud(containerId, words, type) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+
+  if (words.length === 0) {
+    el.innerHTML = '<div style="color:var(--ink3);font-size:13px;padding:10px">Нет данных</div>';
+    return;
+  }
+
+  const maxCount = words[0]?.count || 1;
+
+  for (const { word, count } of words) {
+    const row = document.createElement('div');
+    row.className = `word-row ${type === 'neg' ? 'neg-word' : type === 'pos' ? 'pos-word' : ''}`;
+
+    const pct = (count / maxCount * 100).toFixed(0);
+    row.innerHTML = `
+      <span class="word-name">${escHtml(word)}</span>
+      <div class="word-bar-wrap"><div class="word-bar" style="width:${pct}%"></div></div>
+      <span class="word-count">${count}</span>
+    `;
+    row.addEventListener('click', () => openWordDetail(word, count));
+    el.appendChild(row);
+  }
+}
+
+function openWordDetail(word, count) {
+  const panel = document.getElementById('wordDetailPanel');
+  if (!panel) return;
+
+  // Найти отзывы с этим словом
+  const indices = STATE.wordIndex[word] || [];
+  const reviews = indices.map(i => STATE.allReviews[i]).filter(Boolean);
+
+  document.getElementById('wdpTitle').textContent = `«${word}» — ${count} упоминаний`;
+
+  const total = STATE.allReviews.length;
+  const pct = total ? (count/total*100).toFixed(1) : 0;
+  const articles = [...new Set(reviews.map(r => String(r.nmId || r.article || '')))];
+
+  document.getElementById('wdpStats').innerHTML = `
+    <strong>${count}</strong> отзывов из ${total} (${pct}%)<br>
+    Артикулы: ${articles.slice(0,10).join(', ')} ${articles.length > 10 ? `... +${articles.length-10}` : ''}
+  `;
+
+  const container = document.getElementById('wdpReviews');
+  container.innerHTML = '';
+  for (const rv of reviews.slice(0, 50)) {
+    container.appendChild(makeReviewCard(rv, word));
+  }
+
+  panel.style.display = 'flex';
+}
+
+function closeWordDetail() {
+  const panel = document.getElementById('wordDetailPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+// ─── SEARCH ───────────────────────────────────────────────
+let searchTimer = null;
+function performSearch() {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(_doSearch, 250);
+}
+
+function _doSearch() {
+  const query = (document.getElementById('mainSearch')?.value||'').trim().toLowerCase();
+  if (query.length < 2) {
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('searchEmpty').style.display = 'none';
+    return;
+  }
+
+  // Ищем по тексту И по стеммам
+  const matching = [];
+  for (let i = 0; i < STATE.allReviews.length; i++) {
+    const rv = STATE.allReviews[i];
+    const fullText = [rv.text, rv.pros, rv.cons].filter(Boolean).join(' ').toLowerCase();
+    const tokens = STATE.stems[i] || [];
+    const stemQuery = stem(query);
+
+    if (fullText.includes(query) || tokens.some(t => t.includes(stemQuery) || stemQuery.includes(t))) {
+      matching.push(rv);
+    }
+  }
+
+  const resEl  = document.getElementById('searchResults');
+  const empEl  = document.getElementById('searchEmpty');
+
+  if (matching.length === 0) {
+    resEl.style.display = 'none';
+    empEl.style.display = 'block';
+    return;
+  }
+
+  empEl.style.display = 'none';
+  resEl.style.display = 'block';
+
+  // Meta
+  const total = STATE.allReviews.length;
+  const pct   = total ? (matching.length/total*100).toFixed(1) : 0;
+  const articles = {};
+  for (const rv of matching) {
+    const a = String(rv.nmId||rv.article||'—');
+    articles[a] = (articles[a]||0)+1;
+  }
+
+  const metaHtml = `
+    Найдено: <strong>${matching.length}</strong> отзывов из ${total} (<strong>${pct}%</strong>)<br>
+    Артикулы: ${Object.entries(articles).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([a,c])=>`<strong>${a}</strong> (${c})`).join(', ')}
+  `;
+  document.getElementById('searchMeta').innerHTML = metaHtml;
+
+  // Charts
+  renderSearchCharts(matching, articles);
+
+  // Reviews
+  const container = document.getElementById('searchReviewsList');
+  container.innerHTML = '';
+  for (const rv of matching.slice(0,50)) {
+    container.appendChild(makeReviewCard(rv, query));
+  }
+}
+
+function renderSearchCharts(matching, articles) {
+  if (STATE.searchChart1) { STATE.searchChart1.destroy(); STATE.searchChart1 = null; }
+  if (STATE.searchChart2) { STATE.searchChart2.destroy(); STATE.searchChart2 = null; }
+
+  // Articles chart
+  const topArts = Object.entries(articles).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const c1 = document.getElementById('chartSearchArticles')?.getContext('2d');
+  if (c1) {
+    STATE.searchChart1 = new Chart(c1, {
+      type: 'bar',
+      data: {
+        labels: topArts.map(x => x[0]),
+        datasets: [{ label: 'Отзывов', data: topArts.map(x => x[1]),
+          backgroundColor: 'rgba(26,24,20,0.15)', borderColor: CHART_COLORS.ink, borderWidth: 1, borderRadius: 3 }]
+      },
+      options: { ...chartDefaults(), indexAxis: 'y',
+        plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+    });
+  }
+
+  // Timeline
+  const byDay = {};
+  for (const rv of matching) {
+    const d = (rv.createdDate||rv.updatedDate||'').slice(0,10);
+    if (d) byDay[d] = (byDay[d]||0)+1;
+  }
+  const days = Object.keys(byDay).sort();
+  const c2 = document.getElementById('chartSearchTime')?.getContext('2d');
+  if (c2) {
+    STATE.searchChart2 = new Chart(c2, {
+      type: 'line',
+      data: {
+        labels: days.map(d => d.slice(5)),
+        datasets: [{ label: 'Отзывов', data: days.map(d => byDay[d]),
+          borderColor: CHART_COLORS.red, backgroundColor: 'rgba(192,57,43,0.08)',
+          tension: 0.4, fill: true, pointRadius: 2 }]
+      },
+      options: { ...chartDefaults(), plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+    });
+  }
+}
+
+// ─── PRODUCT MODAL ────────────────────────────────────────
+function openProduct(article) {
+  const reviews = STATE.filtered.filter(rv => String(rv.nmId || rv.article || '') === article);
+  if (reviews.length === 0) return;
+
+  const modal = document.getElementById('productModal');
+  document.getElementById('modalTitle').textContent = `Артикул ${article}`;
+
+  // KPIs
+  const avg = reviews.length ? (reviews.reduce((s,r)=>s+(r.productValuation||0),0)/reviews.length).toFixed(1) : 0;
+  const neg = reviews.filter(r=>(r.productValuation||0)<=3).length;
+  const pos = reviews.filter(r=>(r.productValuation||0)>=4).length;
+
+  document.getElementById('modalKpis').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Отзывов</div><div class="kpi-value">${reviews.length}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Ср. оценка</div><div class="kpi-value">${avg}</div></div>
+    <div class="kpi-card kpi-bad"><div class="kpi-label">Негативных</div><div class="kpi-value">${Math.round(neg/reviews.length*100)}%</div></div>
+    <div class="kpi-card kpi-good"><div class="kpi-label">Позитивных</div><div class="kpi-value">${Math.round(pos/reviews.length*100)}%</div></div>
+  `;
+
+  // Charts
+  if (STATE.charts['modalRating']) { STATE.charts['modalRating'].destroy(); }
+  if (STATE.charts['modalTimeline']) { STATE.charts['modalTimeline'].destroy(); }
+
+  const byDayR = {};
+  const byDayT = {};
+  for (const rv of reviews) {
+    const d = (rv.createdDate||rv.updatedDate||'').slice(0,10);
+    if (!d) continue;
+    if (!byDayR[d]) byDayR[d] = { sum:0, cnt:0 };
+    byDayR[d].sum += rv.productValuation||0;
+    byDayR[d].cnt++;
+    byDayT[d] = (byDayT[d]||0)+1;
+  }
+  const rDays = Object.keys(byDayR).sort();
+  const tDays = Object.keys(byDayT).sort();
+
+  const c1 = document.getElementById('modalChartRating')?.getContext('2d');
+  if (c1) STATE.charts['modalRating'] = new Chart(c1, {
+    type: 'line',
+    data: { labels: rDays.map(d=>d.slice(5)),
+      datasets: [{ label: 'Ср. оценка', data: rDays.map(d=>(byDayR[d].sum/byDayR[d].cnt).toFixed(2)),
+        borderColor: CHART_COLORS.green, fill: false, tension: 0.3, pointRadius: 3 }] },
+    options: { ...chartDefaults(), scales: { ...chartDefaults().scales, y: { ...chartDefaults().scales.y, min:1,max:5 } } }
+  });
+
+  const c2 = document.getElementById('modalChartTimeline')?.getContext('2d');
+  if (c2) STATE.charts['modalTimeline'] = new Chart(c2, {
+    type: 'bar',
+    data: { labels: tDays.map(d=>d.slice(5)),
+      datasets: [{ label: 'Отзывы', data: tDays.map(d=>byDayT[d]),
+        backgroundColor: 'rgba(26,24,20,0.12)', borderColor: CHART_COLORS.ink, borderRadius: 3 }] },
+    options: { ...chartDefaults(), plugins: { ...chartDefaults().plugins, legend: { display: false } } }
+  });
+
+  // Word clouds
+  const negIdx = reviews.filter(r=>(r.productValuation||0)<=3).map(r=>STATE.allReviews.indexOf(r));
+  const posIdx = reviews.filter(r=>(r.productValuation||0)>=4).map(r=>STATE.allReviews.indexOf(r));
+  renderWordCloud('modalNegWords', getWordFreq(negIdx, 15), 'neg');
+  renderWordCloud('modalPosWords', getWordFreq(posIdx, 15), 'pos');
+
+  // Reviews
+  const container = document.getElementById('modalReviews');
+  container.innerHTML = '';
+  for (const rv of reviews) container.appendChild(makeReviewCard(rv));
+
+  modal.style.display = 'flex';
+}
+
+function closeProductModal(e) {
+  if (!e || e.target === document.getElementById('productModal') || e.currentTarget === document.querySelector('.modal-close')) {
+    document.getElementById('productModal').style.display = 'none';
+  }
+}
+
+// ─── PERIOD PRESETS ───────────────────────────────────────
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const days = this.dataset.days;
+    const year = this.dataset.year;
+
+    // custom period toggle
+    if (this.id === 'customPeriodBtn') {
+      const cp = document.getElementById('customPeriod');
+      cp.style.display = cp.style.display === 'none' ? 'flex' : 'none';
+      return;
+    }
+
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('customPeriod').style.display = 'none';
+
+    const to = new Date();
+    let from = new Date();
+
+    if (year === 'current') {
+      from = new Date(to.getFullYear(), 0, 1);
+    } else if (year === 'prev') {
+      from = new Date(to.getFullYear() - 1, 0, 1);
+      to.setFullYear(to.getFullYear() - 1, 11, 31);
+    } else if (days === '0') {
+      return;
+    } else {
+      from.setDate(from.getDate() - (parseInt(days)||30));
+    }
+
+    const fromStr = dateStr(from);
+    const toStr   = dateStr(to);
+
+    STATE.dateFrom = from;
+    STATE.dateTo   = to;
+
+    const nf = document.getElementById('navDateFrom');
+    const nt = document.getElementById('navDateTo');
+    if (nf) nf.value = fromStr;
+    if (nt) nt.value = toStr;
+
+    // Перефильтруем данные по дате
+    filterByDate(fromStr, toStr);
+  });
+});
+
+function applyCustomPeriod() {
+  const f = document.getElementById('navDateFrom')?.value;
+  const t = document.getElementById('navDateTo')?.value;
+  if (!f || !t) return;
+  filterByDate(f, t);
+  document.getElementById('customPeriod').style.display = 'none';
+}
+
+function filterByDate(fromStr, toStr) {
+  const from = new Date(fromStr + 'T00:00:00');
+  const to   = new Date(toStr   + 'T23:59:59');
+  STATE.filtered = STATE.allReviews.filter(rv => {
+    const d = new Date(rv.createdDate||rv.updatedDate||'');
+    return d >= from && d <= to;
+  });
+  STATE.dateFrom = from;
+  STATE.dateTo   = to;
+  STATE.reviewPage = 0;
+  renderAll();
+}
+
+function updateNavDates() {
+  const f = document.getElementById('navDateFrom');
+  const t = document.getElementById('navDateTo');
+  if (f && STATE.dateFrom) f.value = dateStr(STATE.dateFrom);
+  if (t && STATE.dateTo)   t.value = dateStr(STATE.dateTo);
+}
+
+// ─── TABS ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+}
+
+// ─── SCREEN SWITCH ────────────────────────────────────────
+function showScreen(id) {
+  hideLoading();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function logout() {
+  STATE.allReviews = [];
+  STATE.filtered   = [];
+  showScreen('loginScreen');
+}
+
+// ─── REFRESH ──────────────────────────────────────────────
+async function refreshData() {
+  if (!STATE.apiToken || !STATE.proxyUrl) return;
+  const from = dateStr(STATE.dateFrom);
+  const to   = dateStr(STATE.dateTo);
+  showLoading('Обновление данных...', '');
+  try {
+    const reviews = await fetchWBReviews(STATE.apiToken, STATE.proxyUrl, from, to);
+    STATE.allReviews = reviews;
+    processData();
+  } catch(e) {
+    hideLoading();
+    alert('Ошибка обновления: ' + e.message);
+  }
+}
+
+// ─── LOADING ──────────────────────────────────────────────
+function showLoading(msg, progress) {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('loadingMsg').textContent = msg || 'Загрузка...';
+  document.getElementById('loadingProgress').textContent = progress || '';
+}
+function updateLoadingProgress(txt) {
+  document.getElementById('loadingProgress').textContent = txt;
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+// ─── ERRORS ───────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('loginError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+function hideError() {
+  const el = document.getElementById('loginError');
+  if (el) el.style.display = 'none';
+}
+
+// ─── UTILS ────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+  return String(str||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ─── DEMO MODE ────────────────────────────────────────────
+// При нажатии "Загрузить дашборд" без реального токена — показываем demo
+const _origLoad = loadDashboard;
+window.loadDashboard = async function() {
+  const token = document.getElementById('apiToken').value.trim();
+  const proxy = document.getElementById('proxyUrl').value.trim();
+
+  // Demo режим
+  if (!token && !proxy) {
+    const dateFrom = document.getElementById('dateFrom').value || dateStr(new Date(Date.now() - 30*86400000));
+    const dateTo   = document.getElementById('dateTo').value || dateStr(new Date());
+    STATE.apiToken = 'demo';
+    STATE.proxyUrl = 'demo';
+    STATE.dateFrom = parseDate(dateFrom);
+    STATE.dateTo   = parseDate(dateTo);
+
+    showLoading('Загрузка демо-данных...', '');
+    await new Promise(r => setTimeout(r, 800));
+
+    STATE.allReviews = generateDemoData();
+    processData();
+    showScreen('dashboardScreen');
+    updateNavDates();
+    return;
+  }
+
+  return _origLoad();
+};
+
+// ─── INIT ─────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  setDefaultDates();
+  loadSettings();
+});
+
+</script>
+</body>
+</html>
