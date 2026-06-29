@@ -1429,7 +1429,7 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
     const targetUrl = `https://feedbacks-api.wildberries.ru${endpoint}?${qs}`;
     const url = `${proxyBase}/?url=${encodeURIComponent(targetUrl)}`;
 
-    const res = await fetch(url, { headers: { 'X-WB-Token': token } });
+    const res = await fetch(url, { headers: { 'Authorization': token, 'X-WB-Token': token } });
     if (!res.ok) {
       const txt = await res.text();
       throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
@@ -1448,14 +1448,19 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
 
       let json;
       try {
-        json = await fetchPage(endpoint, {
+        const params = {
           ...extraParams,
           take: TAKE,
           skip: skip,
           order: 'dateDesc',
-          dateFrom: rfcFrom,
-          dateTo:   rfcTo,
-        });
+        };
+        // archive эндпоинт не принимает dateFrom/dateTo
+        if (!extraParams.skipDateFilter) {
+          params.dateFrom = rfcFrom;
+          params.dateTo   = rfcTo;
+        }
+        delete params.skipDateFilter;
+        json = await fetchPage(endpoint, params);
       } catch (e) {
         if (allReviews.length === 0 && page === 1) throw e;
         break;
@@ -1500,7 +1505,8 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
   await pause(1100);
 
   // 3. Архивные (отвеченные >30 дней назад + без текста/фото)
-  await fetchAll('/api/v1/feedbacks/archive', {}, 'Архивные');
+  // archive не принимает dateFrom/dateTo — фильтруем по дате на клиенте
+  await fetchAll('/api/v1/feedbacks/archive', { skipDateFilter: true }, 'Архивные');
 
   return allReviews;
 }
