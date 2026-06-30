@@ -1892,15 +1892,41 @@ const STEM_GROUPS = [
   { prefix: 'упаковк',   label: 'Упаковка' },
   { prefix: 'дешев',     label: 'Дёшево / цена' },
   { prefix: 'дорог',     label: 'Дорого' },
+  { prefix: 'тепл',      label: 'Тёплый / тепло' },
+  { prefix: 'нос',       label: 'Носки (товар)' },
+  { prefix: 'ног',       label: 'Ноги' },
+  { prefix: 'нож',       label: 'Ноги / ножки' },
+  { prefix: 'ступн',     label: 'Ноги / ступни' },
+  { prefix: 'стоп',      label: 'Ноги / стопы' },
+  { prefix: 'натира',    label: 'Натирает' },
+  { prefix: 'жмет',      label: 'Жмёт' },
+  { prefix: 'жм',        label: 'Жмёт' },
+  { prefix: 'свобод',    label: 'Свободно сидит' },
+  { prefix: 'облега',    label: 'Облегает' },
+  { prefix: 'сидит',     label: 'Как сидит' },
+  { prefix: 'налеза',    label: 'Размер: не налезает' },
+  { prefix: 'стяг',      label: 'Стягивает' },
+  { prefix: 'давит',     label: 'Давит' },
+  { prefix: 'дав',       label: 'Давит' },
+  { prefix: 'закаты',    label: 'Закатывается' },
+  { prefix: 'закат',     label: 'Закатывается' },
+  { prefix: 'сваля',     label: 'Сваливается' },
+  { prefix: 'спада',     label: 'Спадает' },
+  { prefix: 'сполза',    label: 'Сползает' },
+  { prefix: 'трет',      label: 'Трёт / натирает' },
 ];
 
+// Минимальная длина обрубка, при которой мы готовы показать его "как есть",
+// если для него не нашлось группы (короче — слишком неинформативно, скрываем)
+const MIN_UNGROUPED_LEN = 5;
+
 function normalizeStem(s) {
+  // Строго: стемм должен НАЧИНАТЬСЯ с префикса группы (односторонняя проверка),
+  // иначе короткие случайные совпадения (напр. "свои" внутри "свобод") дают ложные группы
   for (const g of STEM_GROUPS) {
-    if (s.startsWith(g.prefix) || g.prefix.startsWith(s)) {
-      if (s.length >= 3) return g.label;
-    }
+    if (s.startsWith(g.prefix)) return g.label;
   }
-  return s; // если не нашли группу — оставляем как есть (отдельное слово)
+  return s; // не нашли группу — вернём как есть, фильтрация по длине ниже в getGroupedWordFreq
 }
 
 // Возвращает сгруппированные частоты с учётом синонимов
@@ -1912,6 +1938,10 @@ function getGroupedWordFreq(indices, topN = 50) {
     const seen = new Set();
     for (const t of tokens) {
       const norm = normalizeStem(t);
+      // Если для обрубка не нашлось понятной группы (norm===t, исходный стемм)
+      // и он короче порога — пропускаем как неинформативный мусор
+      const isGrouped = norm !== t;
+      if (!isGrouped && t.length < MIN_UNGROUPED_LEN) continue;
       if (seen.has(norm)) continue; // не считаем дважды в одном отзыве
       seen.add(norm);
       freq[norm] = (freq[norm] || 0) + 1;
@@ -2218,6 +2248,19 @@ function getWordFreq(indices, topN = 30) {
 }
 
 // ─── REVIEWS RENDER ───────────────────────────────────────
+// Базовый срез: дата + глобальный фильтр артикулов (из шапки) — общий для всех вкладок
+function getBaseFiltered() {
+  const filters = STATE.articleFilters || [];
+  return STATE.allReviews.filter(rv => {
+    const d = new Date(rv.createdDate || rv.updatedDate || '');
+    const inDate = d >= STATE.dateFrom && d <= STATE.dateTo;
+    const inArticle = filters.length === 0 || filters.some(f =>
+      getArticle(rv).toLowerCase().includes(f.toLowerCase())
+    );
+    return inDate && inArticle;
+  });
+}
+
 function applyFilters() {
   const rating    = document.getElementById('filterRating')?.value;
   const sentiment = document.getElementById('filterSentiment')?.value;
@@ -2226,7 +2269,8 @@ function applyFilters() {
   const reply     = document.getElementById('filterReply')?.value;
   const article   = document.getElementById('filterArticle')?.value.trim().toLowerCase();
 
-  STATE.filtered = STATE.allReviews.filter(rv => {
+  // Применяем локальные фильтры вкладки "Отзывы" ПОВЕРХ базового среза (дата+артикул)
+  STATE.filtered = getBaseFiltered().filter(rv => {
     if (rating && String(rv.productValuation) !== rating) return false;
     if (sentiment === 'positive' && (rv.productValuation||0) < 4) return false;
     if (sentiment === 'negative' && (rv.productValuation||0) > 3) return false;
@@ -2714,18 +2758,12 @@ function filterByDate(fromStr, toStr) {
   const to   = new Date(toStr   + 'T23:59:59');
   STATE.dateFrom = from;
   STATE.dateTo   = to;
-  const filters = STATE.articleFilters || [];
-  STATE.filtered = STATE.allReviews.filter(rv => {
-    const d = new Date(rv.createdDate||rv.updatedDate||'');
-    const inDate = d >= from && d <= to;
-    const inArticle = filters.length === 0 || filters.some(f =>
-      getArticle(rv).toLowerCase().includes(f.toLowerCase())
-    );
-    return inDate && inArticle;
-  });
+  STATE.filtered = getBaseFiltered();
   STATE.reviewPage = 0;
   renderFilterChips();
-  renderAll();
+  const reviewsTabActive = document.getElementById('tab-reviews')?.classList.contains('active');
+  if (reviewsTabActive) applyFilters();
+  else renderAll();
 }
 
 function updateNavDates() {
@@ -2868,14 +2906,17 @@ async function loadArticlesCatalog() {
     const artIdx  = headers.findIndex(h => h.includes('артикул') || h.includes('article'));
     const nameIdx = headers.findIndex(h => h.includes('назв') || h.includes('name') || h.includes('товар'));
 
+    const seen = new Set();
     articlesCatalog = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCsvLine(lines[i]);
-      const article = artIdx >= 0 ? cols[artIdx] : cols[0];
-      const name    = nameIdx >= 0 ? cols[nameIdx] : (cols[1] || '');
-      if (article) articlesCatalog.push({ article: article.trim(), name: (name||'').trim() });
+      const article = (artIdx >= 0 ? cols[artIdx] : cols[0] || '').trim();
+      const name     = (nameIdx >= 0 ? cols[nameIdx] : (cols[1] || '')).trim();
+      if (!article || seen.has(article)) continue; // дедупликация — в таблице могут быть строки на каждый размер/цвет
+      seen.add(article);
+      articlesCatalog.push({ article, name });
     }
-    console.log(`[Articles] Загружено ${articlesCatalog.length} артикулов из таблицы`);
+    console.log(`[Articles] Загружено ${articlesCatalog.length} уникальных артикулов из таблицы`);
   } catch(e) {
     console.warn('[Articles] Не удалось загрузить каталог:', e.message);
   }
@@ -2972,18 +3013,17 @@ function renderFilterChips() {
 }
 
 function applyNavArticleFilter() {
-  const filters = STATE.articleFilters || [];
-  STATE.filtered = STATE.allReviews.filter(rv => {
-    const d = new Date(rv.createdDate || rv.updatedDate || '');
-    const inDate = d >= STATE.dateFrom && d <= STATE.dateTo;
-    const inArticle = filters.length === 0 || filters.some(f =>
-      getArticle(rv).toLowerCase().includes(f.toLowerCase())
-    );
-    return inDate && inArticle;
-  });
+  // При смене глобального фильтра артикулов — пересчитываем базовый срез,
+  // но если активна вкладка "Отзывы" с локальными фильтрами, applyFilters()
+  // их переприменит поверх (вызывается из renderAll через переключение вкладок не нужно,
+  // т.к. applyFilters читает значения тех же текущих select'ов)
+  STATE.filtered = getBaseFiltered();
   STATE.reviewPage = 0;
   renderFilterChips();
-  renderAll();
+  // Если вкладка "Отзывы" активна и в ней выставлены локальные фильтры — применим их тоже
+  const reviewsTabActive = document.getElementById('tab-reviews')?.classList.contains('active');
+  if (reviewsTabActive) applyFilters();
+  else renderAll();
 }
 
 // Закрыть подсказки при клике вне поля
