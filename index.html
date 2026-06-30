@@ -916,6 +916,44 @@ canvas { max-height: 240px; }
 #loadingMsg { font-size: 14px; color: var(--ink2); }
 
 /* ══════════════════════════════════════════
+   ARTICLE FILTER (chip-style, like KTR dashboard)
+══════════════════════════════════════════ */
+.active-filter-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--amber-bg); border: 1px solid #F9E79F;
+  border-radius: var(--radius-sm); padding: 10px 16px; margin: 0 24px 16px;
+  font-size: 12px; color: var(--amber);
+}
+.active-filter-bar strong { color: var(--ink); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--ink); color: #fff;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.filter-chip .chip-x { cursor: pointer; opacity: .6; font-size: 14px; line-height: 1; }
+.filter-chip .chip-x:hover { opacity: 1; }
+.btn-clear-filter {
+  padding: 4px 12px; background: transparent; border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); font-size: 11px; cursor: pointer; color: var(--ink2);
+}
+.btn-clear-filter:hover { background: var(--bg2); }
+
+.dfp-art-wrap { position: relative; }
+.art-autocomplete {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  max-height: 280px; overflow-y: auto; z-index: 60;
+  box-shadow: var(--shadow-md); display: none;
+}
+.art-autocomplete.show { display: block; }
+.aac-item { padding: 9px 13px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.aac-item:last-child { border-bottom: none; }
+.aac-item:hover { background: var(--bg2); }
+.aac-art { font-weight: 600; font-size: 13px; }
+.aac-meta { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.aac-empty { padding: 10px 13px; font-size: 12px; color: var(--ink3); }
+
+/* ══════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════ */
 @media (max-width: 900px) {
@@ -1021,12 +1059,13 @@ canvas { max-height: 240px; }
     </div>
 
     <div class="nav-actions">
-      <div class="nav-article-filter" style="position:relative">
-        <input type="text" id="navArticleFilter" placeholder="Артикул..."
+      <div class="dfp-art-wrap" style="width:170px">
+        <input type="text" id="navArticleFilter" placeholder="Артикул, Enter..."
           autocomplete="off"
+          class="dfp-art-input" style="width:100%;padding:7px 10px;font-size:12px"
           oninput="onNavArticleInput(event)"
-          style="width:140px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--ink);outline:none" />
-        <div id="navArticleSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:240px;overflow-y:auto;z-index:50"></div>
+          onkeydown="onNavArticleKeydown(event)" />
+        <div id="navArticleSuggest" class="art-autocomplete"></div>
       </div>
       <button class="btn-refresh" id="refreshBtn" onclick="refreshData()">
         ↻ Обновить
@@ -1034,6 +1073,14 @@ canvas { max-height: 240px; }
       <button class="btn-logout" onclick="logout()">Выйти</button>
     </div>
   </nav>
+
+  <!-- Active filter bar (показывается только если выбран хотя бы один артикул) -->
+  <div id="activeFilterBar" class="active-filter-bar" style="display:none">
+    <strong>Фильтр по артикулам:</strong>
+    <div id="filterChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <span id="filterCountInfo" style="color:var(--ink3)"></span>
+    <button class="btn-clear-filter" onclick="clearArticleFilter()">Очистить</button>
+  </div>
 
   <!-- TABS -->
   <div class="tabs-bar">
@@ -1060,10 +1107,6 @@ canvas { max-height: 240px; }
           <div class="kpi-value" id="kpiAvg">—</div>
           <div class="kpi-sub" id="kpiStars"></div>
         </div>
-        <div class="kpi-card kpi-danger">
-          <div class="kpi-label">Без ответа продавца</div>
-          <div class="kpi-value" id="kpiNoReply">—</div>
-        </div>
         <div class="kpi-card">
           <div class="kpi-label">Без текста (только оценка)</div>
           <div class="kpi-value" id="kpiNoText">—</div>
@@ -1075,14 +1118,6 @@ canvas { max-height: 240px; }
         <div class="kpi-card kpi-good">
           <div class="kpi-label">Позитивных</div>
           <div class="kpi-value" id="kpiPos">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">С фото</div>
-          <div class="kpi-value" id="kpiPhoto">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">С видео</div>
-          <div class="kpi-value" id="kpiVideo">—</div>
         </div>
       </div>
 
@@ -1403,37 +1438,58 @@ const PREFIXES_IGNORE = new Set([
   'не','ни','же','бы','ли','да','но','и','а','или','что','как','так','то','это',
   'мне','мы','вы','он','она','оно','они','его','её','их','им','ей','нам','вам','ним','ей','их','нас','вас',
   'все','весь','этот','эта','эти','то','такой','такая','такие','такое',
-  'уже','ещё','ещё','тоже','тут','там','где','когда','очень','просто','только','даже','вот','вообще',
+  'уже','ещё','тоже','тут','там','где','когда','очень','просто','только','даже','вот','вообще',
   'потому','потом','сначала','сразу','всего','всегда','иногда','никогда','никак','всё','нет','был','было','была','были',
   'есть','будет','буду','будут','будем','будете',
-  'получил','получила','получили','товар','заказ','продавец','магазин','качество','размер','цена',
+  'получил','получила','получили','товар','заказ','продавец','магазин',
+  // Служебные/бессмысленные обрубки, засоряющие топ
+  'пришло','пришел','пришла','пришли','край','друг','другой','другая','других',
+  'дав','дала','дали','давно','давай',
+  'этого','этому','этим','свой','своя','своё','свои','моя','мой','моё','мои',
+  'который','которая','которые','которое','чтобы','если','когда','куда','откуда',
+  'один','одна','одно','одни','два','две','три','четыре','пять',
+  'после','перед','между','около','внутри','снаружи',
+  'просто','именно','совсем','совершенно','абсолютно','полностью',
+  'спустя','через','каждый','каждая','каждое',
+  'себя','себе','собой','сам','сама','само','сами',
+  'может','можно','нужно','нужен','нужна','нужны','надо',
+  'делать','сделал','сделала','сделали','делает',
+  'хочу','хочет','хотел','хотела','хотели',
+  'купил','купила','купили','покупк','заказал','заказала',
 ]);
 
 function stem(word) {
   word = word.toLowerCase().replace(/ё/g, 'е');
   if (word.length < 4) return word;
 
-  // Убираем рефлексивные суффиксы -ся/-сь
-  word = word.replace(/(ся|сь)$/, '');
+  // Консервативный стеммер — снимаем ТОЛЬКО одно стандартное окончание за раз,
+  // не уродуя основу слова (старая версия резала "скатывается"->"скат", что
+  // делало группировку нечитаемой). Применяем самый длинный подходящий суффикс.
+  const suffixes = [
+    // глагольные/причастные (длинные сначала)
+    'ывается','ивается','овается','юсь','ться','тся','лась','лись','лось',
+    'ывает','ивает','ывают','ивают','ующий','ующая','ующее','ующие',
+    'енный','енная','енное','енные','анный','анная','анное','анные',
+    'ивш','явш','евш','авш','вшись','вшим','вшей',
+    'ает','яет','еет','уют','ают','ют','ит','ет','ат','ял','ала','яла',
+    'ило','ила','али','яли','ело','ела','ели','яло','ало','ыло','ыла','ыли',
+    'ь','л',
+    // прилагательные
+    'ими','ыми','ого','его','ому','ему','ую','юю','ая','яя',
+    'ые','ие','ых','их','ой','ей','ий','ый','ое','ее',
+    // существительные
+    'ями','ами','иями','остей','остях','остям',
+    'ах','ях','ам','ям','ов','ев','ью',
+    'ой','ей','ия','ие','ью',
+    'е','и','у','ю','а','я','ы','о',
+  ];
 
-  // Убираем окончания прилагательных
-  word = word.replace(/(ими|ыми|ого|его|ому|ему|ую|юю|ая|яя|ые|ие|ых|их|ой|ей|ий|ый)$/, '');
-
-  // Убираем глагольные окончания
-  word = word.replace(/(ывать|ивать|овать|евать|ывает|ивает|ивают|ывают|овает|евает|оваться|еваться|ываться|иваться)$/, '');
-  word = word.replace(/(ишь|ешь|ете|ите|ем|им|ют|ят|ует|ует|уют)$/, '');
-  word = word.replace(/(ть|ти|чь)$/, '');
-  word = word.replace(/(ал|яла|ило|ила|али|яли|ело|ела|ели|яло|ало|ыло|ыла|ыли)$/, '');
-
-  // Убираем существительные окончания
-  word = word.replace(/(ами|ями|ах|ях|ов|ев|ий|ий|ье|ья|ей|ий|ий)$/, '');
-  word = word.replace(/(ам|ям|ом|ем|ах|ях|е|и|у|ю|а|я|ы)$/, '');
-
-  // Убираем суффиксы
-  word = word.replace(/(ость|есть|ств|ск|к)$/, '');
-  word = word.replace(/(н|щ|ч|ш|щ)$/, '');
-
-  return word.length >= 3 ? word : word;
+  for (const suf of suffixes) {
+    if (word.length - suf.length >= 3 && word.endsWith(suf)) {
+      return word.slice(0, -suf.length);
+    }
+  }
+  return word;
 }
 
 function tokenize(text) {
@@ -1753,25 +1809,68 @@ function processData() {
 // у нашего упрощённого стеммера: "швы"->"шв", "шов"->"шов"). Решаем через таблицу
 // синонимов корней + Левенштейн-похожесть для коротких стеммов.
 
-const STEM_SYNONYMS = {
-  'шв': 'шов', 'шовн': 'шов', 'шить': 'шов',
-  'дыр': 'дырка', 'дыряв': 'дырка', 'дырочк': 'дырка',
-  'катыш': 'катышки', 'скатыва': 'катышки', 'скатался': 'катышки', 'скатк': 'катышки',
-  'просвечива': 'просвечивает', 'прозрачн': 'просвечивает',
-  'резинк': 'резинка', 'резин': 'резинка',
-  'размер': 'размер', 'размерн': 'размер', 'маломерит': 'размер', 'большемерит': 'размер',
-  'качеств': 'качество', 'некачествен': 'качество',
-  'цвет': 'цвет', 'окраш': 'цвет', 'облез': 'цвет', 'полиня': 'цвет',
-  'мягк': 'мягкость', 'мягеньк': 'мягкость',
-  'удобн': 'удобство', 'комфорт': 'удобство',
-  'жарк': 'жарко', 'не дыш': 'жарко', 'парник': 'жарко',
-  'короткий': 'короткое', 'коротк': 'короткое',
-  'тонк': 'тонкий материал', 'тон': 'тонкий материал',
-  'запах': 'запах', 'воня': 'запах', 'пахн': 'запах',
-};
+// Группируем по ПРЕФИКСУ (а не точному совпадению) — это надёжнее,
+// т.к. conservative-стеммер оставляет разные хвосты:
+// "шов","швы","швам","швом" -> stem даёт "шов","шв","шв","шв" — все начинаются на "шв"/"шов"
+const STEM_GROUPS = [
+  { prefix: 'шв',        label: 'Шов / швы' },
+  { prefix: 'шов',       label: 'Шов / швы' },
+  { prefix: 'дыр',       label: 'Дырка / дыры' },
+  { prefix: 'катыш',     label: 'Катышки' },
+  { prefix: 'скатыв',    label: 'Катышки (скатывается)' },
+  { prefix: 'скатк',     label: 'Катышки (скатывается)' },
+  { prefix: 'скатал',    label: 'Катышки (скатывается)' },
+  { prefix: 'скат',      label: 'Катышки (скатывается)' },
+  { prefix: 'просвеч',   label: 'Просвечивает' },
+  { prefix: 'прозрачн',  label: 'Просвечивает / прозрачный' },
+  { prefix: 'резин',     label: 'Резинка' },
+  { prefix: 'размер',    label: 'Размер не совпадает' },
+  { prefix: 'маломер',   label: 'Размер: маломерит' },
+  { prefix: 'большемер', label: 'Размер: большемерит' },
+  { prefix: 'качеств',   label: 'Качество' },
+  { prefix: 'некачеств', label: 'Плохое качество' },
+  { prefix: 'цвет',      label: 'Цвет' },
+  { prefix: 'окраш',     label: 'Окраска / линяет' },
+  { prefix: 'облез',     label: 'Облезает' },
+  { prefix: 'полиня',    label: 'Линяет' },
+  { prefix: 'мягк',      label: 'Мягкость' },
+  { prefix: 'удобн',     label: 'Удобство' },
+  { prefix: 'комфорт',   label: 'Комфорт' },
+  { prefix: 'жарк',      label: 'Жарко / не дышит' },
+  { prefix: 'дыш',       label: 'Жарко / не дышит' },
+  { prefix: 'коротк',    label: 'Короткое' },
+  { prefix: 'длинн',     label: 'Длинное' },
+  { prefix: 'тонк',      label: 'Тонкий материал' },
+  { prefix: 'запах',     label: 'Запах' },
+  { prefix: 'вон',       label: 'Неприятный запах' },
+  { prefix: 'пахн',      label: 'Запах' },
+  { prefix: 'прият',     label: 'Приятный (материал/на ощупь)' },
+  { prefix: 'рекоменд',  label: 'Рекомендую' },
+  { prefix: 'спасиб',    label: 'Спасибо' },
+  { prefix: 'отлич',     label: 'Отлично' },
+  { prefix: 'хорош',     label: 'Хорошо' },
+  { prefix: 'супер',     label: 'Супер' },
+  { prefix: 'лег',       label: 'Лёгкий (вес/в носке)' },
+  { prefix: 'ткан',      label: 'Ткань / материал' },
+  { prefix: 'плотн',     label: 'Плотность ткани' },
+  { prefix: 'растяг',    label: 'Растягивается' },
+  { prefix: 'сел',       label: 'Села (одежда после стирки)' },
+  { prefix: 'усел',      label: 'Села (одежда после стирки)' },
+  { prefix: 'брак',      label: 'Брак' },
+  { prefix: 'разочаров', label: 'Разочарование' },
+  { prefix: 'доставк',   label: 'Доставка' },
+  { prefix: 'упаковк',   label: 'Упаковка' },
+  { prefix: 'дешев',     label: 'Дёшево / цена' },
+  { prefix: 'дорог',     label: 'Дорого' },
+];
 
 function normalizeStem(s) {
-  return STEM_SYNONYMS[s] || s;
+  for (const g of STEM_GROUPS) {
+    if (s.startsWith(g.prefix) || g.prefix.startsWith(s)) {
+      if (s.length >= 3) return g.label;
+    }
+  }
+  return s; // если не нашли группу — оставляем как есть (отдельное слово)
 }
 
 // Возвращает сгруппированные частоты с учётом синонимов
@@ -1846,35 +1945,22 @@ function renderAll() {
 // ─── KPIs ─────────────────────────────────────────────────
 function renderKPIs() {
   const r = STATE.filtered;
-  const total = STATE.allReviews.length;
   const period = r.length;
   const avgRaw = r.length ? r.reduce((s, x) => s + (x.productValuation||0), 0) / r.length : 0;
   const avg = avgRaw.toFixed(1);
 
   const neg = r.filter(x => (x.productValuation||0) <= 3).length;
   const pos = r.filter(x => (x.productValuation||0) >= 4).length;
-  // WB: unanswered = answer is null, or answer.text is empty/whitespace
-  const noReply = r.filter(x => {
-    const ans = x.answer;
-    if (!ans) return true;
-    if (typeof ans === 'string') return ans.trim().length === 0;
-    return !(ans.text && ans.text.trim().length > 0);
-  }).length;
-  const photo = r.filter(x => hasPhoto(x)).length;
-  const video = r.filter(x => hasVideo(x)).length;
 
   function pct(n) { return r.length ? Math.round(n / r.length * 100) + '%' : '0%'; }
 
   set('kpiPeriod',  period.toLocaleString('ru'));
   set('kpiAvg',     avg);
   set('kpiStars',   '⭐'.repeat(Math.round(avgRaw)));
-  set('kpiNoReply', noReply.toLocaleString('ru'));
   const noText = r.filter(x => !(x.text||'').trim() && !(x.pros||'').trim() && !(x.cons||'').trim()).length;
   set('kpiNoText', noText.toLocaleString('ru'));
   set('kpiNeg',     pct(neg));
   set('kpiPos',     pct(pos));
-  set('kpiPhoto',   photo.toLocaleString('ru'));
-  set('kpiVideo',   video.toLocaleString('ru'));
 
   function set(id, val) {
     const el = document.getElementById(id);
@@ -2598,13 +2684,17 @@ function filterByDate(fromStr, toStr) {
   const to   = new Date(toStr   + 'T23:59:59');
   STATE.dateFrom = from;
   STATE.dateTo   = to;
+  const filters = STATE.articleFilters || [];
   STATE.filtered = STATE.allReviews.filter(rv => {
     const d = new Date(rv.createdDate||rv.updatedDate||'');
     const inDate = d >= from && d <= to;
-    const inArticle = !STATE.navArticleFilter || getArticle(rv) === STATE.navArticleFilter;
+    const inArticle = filters.length === 0 || filters.some(f =>
+      getArticle(rv).toLowerCase().includes(f.toLowerCase())
+    );
     return inDate && inArticle;
   });
   STATE.reviewPage = 0;
+  renderFilterChips();
   renderAll();
 }
 
@@ -2762,71 +2852,117 @@ async function loadArticlesCatalog() {
 }
 
 function onNavArticleInput(e) {
-  const val = e.target.value.trim().toLowerCase();
-  const suggestEl = document.getElementById('navArticleSuggest');
+  showArtAutocomplete(e.target.value.trim());
+}
 
-  if (val.length < 1) {
-    suggestEl.style.display = 'none';
-    // Сброс фильтра — показать все
-    STATE.navArticleFilter = null;
-    applyNavArticleFilter();
-    return;
+function onNavArticleKeydown(e) {
+  if (e.key === 'Enter') {
+    const val = e.target.value.trim();
+    if (val) addArticleFilter(val);
+    e.target.value = '';
+    hideArtAutocomplete();
   }
+}
 
+function showArtAutocomplete(query) {
+  const el = document.getElementById('navArticleSuggest');
+  if (!el) return;
+
+  if (!query) { hideArtAutocomplete(); return; }
+  const q = query.toLowerCase();
   const matches = articlesCatalog.filter(a =>
-    a.article.toLowerCase().includes(val) || a.name.toLowerCase().includes(val)
+    a.article.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
   ).slice(0, 8);
 
   if (matches.length === 0) {
-    suggestEl.style.display = 'none';
-    return;
+    el.innerHTML = '<div class="aac-empty">Ничего не найдено в таблице</div>';
+  } else {
+    el.innerHTML = matches.map(m => `
+      <div class="aac-item" onclick="pickArtAutocomplete('${escAttr(m.article)}')">
+        <div class="aac-art">${escHtml(m.article)}</div>
+        ${m.name ? `<div class="aac-meta">${escHtml(m.name.slice(0,50))}</div>` : ''}
+      </div>
+    `).join('');
   }
-
-  suggestEl.innerHTML = matches.map(m => `
-    <div class="nav-suggest-item" onclick="selectNavArticle('${escAttr(m.article)}')"
-      style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)">
-      <strong>${escHtml(m.article)}</strong>${m.name ? ' — ' + escHtml(m.name.slice(0,40)) : ''}
-    </div>
-  `).join('');
-  suggestEl.style.display = 'block';
-
-  // Hover effect
-  suggestEl.querySelectorAll('.nav-suggest-item').forEach(item => {
-    item.addEventListener('mouseenter', () => item.style.background = 'var(--bg2)');
-    item.addEventListener('mouseleave', () => item.style.background = '');
-  });
+  el.classList.add('show');
 }
 
-function selectNavArticle(article) {
-  document.getElementById('navArticleFilter').value = article;
-  document.getElementById('navArticleSuggest').style.display = 'none';
-  STATE.navArticleFilter = article;
+function hideArtAutocomplete() {
+  const el = document.getElementById('navArticleSuggest');
+  if (el) el.classList.remove('show');
+}
+
+function pickArtAutocomplete(article) {
+  addArticleFilter(article);
+  document.getElementById('navArticleFilter').value = '';
+  hideArtAutocomplete();
+}
+
+function addArticleFilter(article) {
+  if (!STATE.articleFilters) STATE.articleFilters = [];
+  if (!STATE.articleFilters.includes(article)) {
+    STATE.articleFilters.push(article);
+    renderFilterChips();
+    applyNavArticleFilter();
+  }
+}
+
+function removeArticleFilter(idx) {
+  STATE.articleFilters.splice(idx, 1);
+  renderFilterChips();
   applyNavArticleFilter();
 }
 
+function clearArticleFilter() {
+  STATE.articleFilters = [];
+  renderFilterChips();
+  applyNavArticleFilter();
+}
+
+function renderFilterChips() {
+  const bar = document.getElementById('activeFilterBar');
+  const chipsEl = document.getElementById('filterChips');
+  const countEl = document.getElementById('filterCountInfo');
+  if (!bar || !chipsEl) return;
+
+  const filters = STATE.articleFilters || [];
+  if (filters.length === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+
+  bar.style.display = 'flex';
+  chipsEl.innerHTML = filters.map((a, i) => `
+    <span class="filter-chip">${escHtml(a)}<span class="chip-x" onclick="removeArticleFilter(${i})">×</span></span>
+  `).join('');
+
+  if (countEl && STATE.filtered) {
+    countEl.textContent = `(${STATE.filtered.length} из ${STATE.allReviews.length})`;
+  }
+}
+
 function applyNavArticleFilter() {
-  const base = STATE.navArticleFilter
-    ? STATE.allReviews.filter(rv => {
-        const d = new Date(rv.createdDate || rv.updatedDate || '');
-        return d >= STATE.dateFrom && d <= STATE.dateTo && getArticle(rv) === STATE.navArticleFilter;
-      })
-    : STATE.allReviews.filter(rv => {
-        const d = new Date(rv.createdDate || rv.updatedDate || '');
-        return d >= STATE.dateFrom && d <= STATE.dateTo;
-      });
-  STATE.filtered = base;
+  const filters = STATE.articleFilters || [];
+  STATE.filtered = STATE.allReviews.filter(rv => {
+    const d = new Date(rv.createdDate || rv.updatedDate || '');
+    const inDate = d >= STATE.dateFrom && d <= STATE.dateTo;
+    const inArticle = filters.length === 0 || filters.some(f =>
+      getArticle(rv).toLowerCase().includes(f.toLowerCase())
+    );
+    return inDate && inArticle;
+  });
   STATE.reviewPage = 0;
+  renderFilterChips();
   renderAll();
 }
 
 // Закрыть подсказки при клике вне поля
 document.addEventListener('click', (e) => {
-  const wrap = document.querySelector('.nav-article-filter');
-  if (wrap && !wrap.contains(e.target)) {
-    const s = document.getElementById('navArticleSuggest');
-    if (s) s.style.display = 'none';
-  }
+  const wrap = document.querySelector('.dfp-art-wrap');
+  if (wrap && !wrap.contains(e.target)) hideArtAutocomplete();
 });
+
+// ─── INIT
 
 // ─── INIT ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
