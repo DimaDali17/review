@@ -1021,6 +1021,13 @@ canvas { max-height: 240px; }
     </div>
 
     <div class="nav-actions">
+      <div class="nav-article-filter" style="position:relative">
+        <input type="text" id="navArticleFilter" placeholder="Артикул..."
+          autocomplete="off"
+          oninput="onNavArticleInput(event)"
+          style="width:140px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--ink);outline:none" />
+        <div id="navArticleSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);max-height:240px;overflow-y:auto;z-index:50"></div>
+      </div>
       <button class="btn-refresh" id="refreshBtn" onclick="refreshData()">
         ↻ Обновить
       </button>
@@ -1177,16 +1184,18 @@ canvas { max-height: 240px; }
     <!-- ────────── TAB: TEXT ANALYSIS ────────── -->
     <div id="tab-textanalysis" class="tab-content">
 
-      <!-- AI Негатив-анализ -->
-      <div class="analysis-card full" style="margin-bottom:14px">
-        <div class="analysis-title">🤖 AI-анализ маркеров негатива</div>
-        <div style="font-size:13px;color:var(--ink3);margin-bottom:12px">
-          Автоматически выделяет конкретные проблемы из негативных отзывов — не просто слова, а смысловые паттерны
+      <!-- Группированный анализ проблем -->
+      <div class="analysis-grid" style="margin-bottom:14px">
+        <div class="analysis-card">
+          <div class="analysis-title">🔴 Главные проблемы (негатив)</div>
+          <div id="negGroupedWords" class="word-cloud"></div>
+          <button class="btn-load-more" id="negShowMoreBtn" style="margin-top:10px;width:100%;display:none" onclick="toggleWordList('neg')">Показать все</button>
         </div>
-        <button class="btn-primary" style="width:auto;padding:10px 24px;font-size:13px" onclick="runAIAnalysis()">
-          Запустить анализ
-        </button>
-        <div id="aiAnalysisResult" style="margin-top:16px"></div>
+        <div class="analysis-card">
+          <div class="analysis-title">🟢 Главные плюсы (позитив)</div>
+          <div id="posGroupedWords" class="word-cloud"></div>
+          <button class="btn-load-more" id="posShowMoreBtn" style="margin-top:10px;width:100%;display:none" onclick="toggleWordList('pos')">Показать все</button>
+        </div>
       </div>
 
       <!-- Поиск по корню слова -->
@@ -1585,17 +1594,23 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
   }
 
   // 1. Неотвеченные отзывы
+  let before = allReviews.length;
   await fetchAll('/api/v1/feedbacks', { isAnswered: 'false' }, 'Неотвеченные');
+  console.log(`[WB Debug] Неотвеченные: получено ${allReviews.length - before}`);
   await pause(1100);
 
   // 2. Отвеченные отзывы
+  before = allReviews.length;
   await fetchAll('/api/v1/feedbacks', { isAnswered: 'true' }, 'Отвеченные');
+  console.log(`[WB Debug] Отвеченные: получено ${allReviews.length - before}`);
   await pause(1100);
 
   // 3. Архивные (отвеченные >30 дней назад + без текста/фото)
-  // archive не принимает dateFrom/dateTo — фильтруем по дате на клиенте
+  before = allReviews.length;
   await fetchAll('/api/v1/feedbacks/archive', { skipDateFilter: true }, 'Архивные');
+  console.log(`[WB Debug] Архивные: получено ${allReviews.length - before}`);
 
+  console.log(`[WB Debug] ИТОГО: ${allReviews.length} отзывов`);
   return allReviews;
 }
 
@@ -1637,6 +1652,7 @@ async function loadDashboard() {
     processData();
     showScreen('dashboardScreen');
     updateNavDates();
+    loadArticlesCatalog(); // фоновая загрузка, не блокирует UI
 
   } catch (e) {
     hideLoading();
@@ -1731,65 +1747,59 @@ function processData() {
   renderAll();
 }
 
-// ─── AI ANALYSIS ──────────────────────────────────────────────────────────────
-async function runAIAnalysis() {
-  const btn = document.querySelector('[onclick="runAIAnalysis()"]');
-  const resultEl = document.getElementById('aiAnalysisResult');
-  if (!resultEl) return;
-  const negReviews = STATE.filtered.filter(r => (r.productValuation||0) <= 3);
-  if (negReviews.length === 0) {
-    resultEl.innerHTML = '<div style="color:var(--ink3);font-size:13px">Нет негативных отзывов в выбранном периоде</div>';
-    return;
-  }
-  btn.disabled = true; btn.textContent = 'Анализирую...';
-  resultEl.innerHTML = '<div style="display:flex;align-items:center;gap:10px"><div class="spinner" style="width:20px;height:20px;border-width:2px"></div><span style="font-size:13px;color:var(--ink3)">Обрабатываю ' + negReviews.length + ' отзывов...</span></div>';
-  const sample = negReviews.slice(0,150).map((r,i)=>{
-    const txt=[r.text,r.cons,r.pros].filter(Boolean).join(' | ');
-    return (i+1)+'. '+txt.slice(0,300);
-  }).join('\n');
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6', max_tokens:1000,
-        messages:[{role:'user',content:`Ты аналитик отзывов. Проанализируй негативные отзывы и выдели КОНКРЕТНЫЕ проблемы — смысловые паттерны, не просто слова. Ответ строго JSON без markdown:
-{"problems":[{"marker":"название","count":число,"examples":["цитата1","цитата2"],"severity":"high|medium|low"}],"summary":"резюме"}
+// ─── SMART WORD GROUPING (без AI, чисто статистика) ──────────────────────────
+// Группируем словоформы в смысловые группы по общему корню (stem уже это делает),
+// но дополнительно склеиваем близкие стеммы (напр. "шв" и "шов" — частая проблема
+// у нашего упрощённого стеммера: "швы"->"шв", "шов"->"шов"). Решаем через таблицу
+// синонимов корней + Левенштейн-похожесть для коротких стеммов.
 
-Отзывы (${negReviews.length} шт, первые ${Math.min(150,negReviews.length)}):
-${sample}`}]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text||'';
-    let parsed; try { parsed=JSON.parse(text.replace(/\`\`\`json|\`\`\`/g,'').trim()); } catch(e){throw new Error('Не удалось разобрать ответ AI');}
-    renderAIResult(parsed, negReviews.length);
-  } catch(e) {
-    resultEl.innerHTML=`<div class="error-msg">Ошибка: ${e.message}</div>`;
-  }
-  btn.disabled=false; btn.textContent='Запустить анализ';
+const STEM_SYNONYMS = {
+  'шв': 'шов', 'шовн': 'шов', 'шить': 'шов',
+  'дыр': 'дырка', 'дыряв': 'дырка', 'дырочк': 'дырка',
+  'катыш': 'катышки', 'скатыва': 'катышки', 'скатался': 'катышки', 'скатк': 'катышки',
+  'просвечива': 'просвечивает', 'прозрачн': 'просвечивает',
+  'резинк': 'резинка', 'резин': 'резинка',
+  'размер': 'размер', 'размерн': 'размер', 'маломерит': 'размер', 'большемерит': 'размер',
+  'качеств': 'качество', 'некачествен': 'качество',
+  'цвет': 'цвет', 'окраш': 'цвет', 'облез': 'цвет', 'полиня': 'цвет',
+  'мягк': 'мягкость', 'мягеньк': 'мягкость',
+  'удобн': 'удобство', 'комфорт': 'удобство',
+  'жарк': 'жарко', 'не дыш': 'жарко', 'парник': 'жарко',
+  'короткий': 'короткое', 'коротк': 'короткое',
+  'тонк': 'тонкий материал', 'тон': 'тонкий материал',
+  'запах': 'запах', 'воня': 'запах', 'пахн': 'запах',
+};
+
+function normalizeStem(s) {
+  return STEM_SYNONYMS[s] || s;
 }
-function renderAIResult(data, total) {
-  const el=document.getElementById('aiAnalysisResult');
-  if(!el||!data?.problems) return;
-  const sevColor={high:'var(--red)',medium:'var(--amber)',low:'var(--ink3)'};
-  const sevLabel={high:'🔴 Критично',medium:'🟡 Важно',low:'⚪ Минорно'};
-  let h='';
-  if(data.summary) h+=`<div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;font-size:14px;line-height:1.6;color:var(--ink2)">${escHtml(data.summary)}</div>`;
-  h+='<div style="display:flex;flex-direction:column;gap:10px">';
-  for(const p of data.problems||[]){
-    const pct=total?Math.round(p.count/total*100):0;
-    h+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-        <span style="font-weight:600;font-size:15px">${escHtml(p.marker)}</span>
-        <span style="font-family:var(--font-mono);font-size:11px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px">${p.count} · ${pct}%</span>
-        <span style="font-size:11px;color:${sevColor[p.severity]||'var(--ink3)'}">${sevLabel[p.severity]||''}</span>
-      </div>
-      ${p.examples?.length?`<div style="display:flex;flex-direction:column;gap:4px">${p.examples.slice(0,2).map(ex=>`<div style="font-size:13px;color:var(--ink3);padding-left:12px;border-left:2px solid var(--border)">«${escHtml(ex)}»</div>`).join('')}</div>`:''}
-    </div>`;
+
+// Возвращает сгруппированные частоты с учётом синонимов
+function getGroupedWordFreq(indices, topN = 50) {
+  const freq = {};
+  const src = indices !== null ? indices : STATE.allReviews.map((_, i) => i);
+  for (const i of src) {
+    const tokens = STATE.stems[i] || [];
+    const seen = new Set();
+    for (const t of tokens) {
+      const norm = normalizeStem(t);
+      if (seen.has(norm)) continue; // не считаем дважды в одном отзыве
+      seen.add(norm);
+      freq[norm] = (freq[norm] || 0) + 1;
+    }
   }
-  h+='</div>';
-  el.innerHTML=h;
+  return Object.entries(freq)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, topN)
+    .map(([word, count]) => ({ word, count }));
+}
+
+const WORD_LIST_COLLAPSE_SIZE = 10;
+const expandedLists = { neg: false, pos: false };
+
+function toggleWordList(type) {
+  expandedLists[type] = !expandedLists[type];
+  renderTextAnalysis();
 }
 
 // ─── STEM SEARCH ────────────────────────────────────────────────────────────
@@ -2256,20 +2266,33 @@ function sortProducts(col) {
 // ─── TEXT ANALYSIS ────────────────────────────────────────
 function renderTextAnalysis() {
   const negIdxs = STATE.filtered
-    .map((rv, i) => ({ rv, i: STATE.allReviews.indexOf(rv) }))
-    .filter(x => (x.rv.productValuation||0) <= 3)
-    .map(x => x.i);
+    .filter(rv => (rv.productValuation||0) <= 3)
+    .map(rv => STATE.allReviews.indexOf(rv));
 
   const posIdxs = STATE.filtered
-    .map((rv, i) => ({ rv, i: STATE.allReviews.indexOf(rv) }))
-    .filter(x => (x.rv.productValuation||0) >= 4)
-    .map(x => x.i);
+    .filter(rv => (rv.productValuation||0) >= 4)
+    .map(rv => STATE.allReviews.indexOf(rv));
 
-  const allIdxs = STATE.filtered.map(rv => STATE.allReviews.indexOf(rv));
+  const negWords = getGroupedWordFreq(negIdxs, 50);
+  const posWords = getGroupedWordFreq(posIdxs, 50);
 
-  renderWordCloud('negWordCloud', getWordFreq(negIdxs, 30), 'neg');
-  renderWordCloud('posWordCloud', getWordFreq(posIdxs, 30), 'pos');
-  renderWordCloud('allWordCloud', getWordFreq(allIdxs, 40), 'all');
+  renderCollapsibleWordCloud('negGroupedWords', 'negShowMoreBtn', negWords, 'neg', expandedLists.neg);
+  renderCollapsibleWordCloud('posGroupedWords', 'posShowMoreBtn', posWords, 'pos', expandedLists.pos);
+}
+
+function renderCollapsibleWordCloud(containerId, btnId, words, type, expanded) {
+  const shown = expanded ? words : words.slice(0, WORD_LIST_COLLAPSE_SIZE);
+  renderWordCloud(containerId, shown, type);
+
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    if (words.length > WORD_LIST_COLLAPSE_SIZE) {
+      btn.style.display = 'block';
+      btn.textContent = expanded ? 'Свернуть' : `Показать все (${words.length})`;
+    } else {
+      btn.style.display = 'none';
+    }
+  }
 }
 
 function renderWordCloud(containerId, words, type) {
@@ -2430,7 +2453,7 @@ function renderSearchCharts(matching, articles) {
     STATE.searchChart2 = new Chart(c2, {
       type: 'line',
       data: {
-        labels: days.map(d => d.slice(5)),
+        labels: days.map(d => { const p=d.slice(5).split('-'); return p[1]+'.'+p[0]; }),
         datasets: [{ label: 'Отзывов', data: days.map(d => byDay[d]),
           borderColor: CHART_COLORS.red, backgroundColor: 'rgba(192,57,43,0.08)',
           tension: 0.4, fill: true, pointRadius: 2 }]
@@ -2480,7 +2503,7 @@ function openProduct(article) {
   const c1 = document.getElementById('modalChartRating')?.getContext('2d');
   if (c1) STATE.charts['modalRating'] = new Chart(c1, {
     type: 'line',
-    data: { labels: rDays.map(d=>d.slice(5)),
+    data: { labels: rDays.map(d=>{ const p=d.slice(5).split('-'); return p[1]+'.'+p[0]; }),
       datasets: [{ label: 'Ср. оценка', data: rDays.map(d=>(byDayR[d].sum/byDayR[d].cnt).toFixed(2)),
         borderColor: CHART_COLORS.green, fill: false, tension: 0.3, pointRadius: 3 }] },
     options: { ...chartDefaults(), scales: { ...chartDefaults().scales, y: { ...chartDefaults().scales.y, min:1,max:5 } } }
@@ -2489,7 +2512,7 @@ function openProduct(article) {
   const c2 = document.getElementById('modalChartTimeline')?.getContext('2d');
   if (c2) STATE.charts['modalTimeline'] = new Chart(c2, {
     type: 'bar',
-    data: { labels: tDays.map(d=>d.slice(5)),
+    data: { labels: tDays.map(d=>{ const p=d.slice(5).split('-'); return p[1]+'.'+p[0]; }),
       datasets: [{ label: 'Отзывы', data: tDays.map(d=>byDayT[d]),
         backgroundColor: 'rgba(26,24,20,0.12)', borderColor: CHART_COLORS.ink, borderRadius: 3 }] },
     options: { ...chartDefaults(), plugins: { ...chartDefaults().plugins, legend: { display: false } } }
@@ -2573,12 +2596,14 @@ function applyCustomPeriod() {
 function filterByDate(fromStr, toStr) {
   const from = new Date(fromStr + 'T00:00:00');
   const to   = new Date(toStr   + 'T23:59:59');
-  STATE.filtered = STATE.allReviews.filter(rv => {
-    const d = new Date(rv.createdDate||rv.updatedDate||'');
-    return d >= from && d <= to;
-  });
   STATE.dateFrom = from;
   STATE.dateTo   = to;
+  STATE.filtered = STATE.allReviews.filter(rv => {
+    const d = new Date(rv.createdDate||rv.updatedDate||'');
+    const inDate = d >= from && d <= to;
+    const inArticle = !STATE.navArticleFilter || getArticle(rv) === STATE.navArticleFilter;
+    return inDate && inArticle;
+  });
   STATE.reviewPage = 0;
   renderAll();
 }
@@ -2686,11 +2711,122 @@ window.loadDashboard = async function() {
     processData();
     showScreen('dashboardScreen');
     updateNavDates();
+    loadArticlesCatalog();
     return;
   }
 
   return _origLoad();
 };
+
+// ─── ARTICLES CATALOG (Google Sheets CSV) ──────────────────────────────────
+const ARTICLES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRv2VuvAbmweu5Q_5cj-zoss2s3RoFMwKfK2z6tp22oG7FFfNGvoR8LYAyv56tvnvdJc6wouLBaYpph/pub?gid=612792464&single=true&output=csv';
+let articlesCatalog = []; // [{article, name, ...}]
+
+async function loadArticlesCatalog() {
+  try {
+    const res = await fetch(ARTICLES_CSV_URL);
+    if (!res.ok) return;
+    const text = await res.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) return;
+
+    // Простой CSV-парсер (учитывает запятые в кавычках)
+    function parseCsvLine(line) {
+      const result = [];
+      let cur = '', inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') inQuotes = !inQuotes;
+        else if (c === ',' && !inQuotes) { result.push(cur); cur = ''; }
+        else cur += c;
+      }
+      result.push(cur);
+      return result.map(s => s.trim());
+    }
+
+    const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
+    const artIdx  = headers.findIndex(h => h.includes('артикул') || h.includes('article'));
+    const nameIdx = headers.findIndex(h => h.includes('назв') || h.includes('name') || h.includes('товар'));
+
+    articlesCatalog = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i]);
+      const article = artIdx >= 0 ? cols[artIdx] : cols[0];
+      const name    = nameIdx >= 0 ? cols[nameIdx] : (cols[1] || '');
+      if (article) articlesCatalog.push({ article: article.trim(), name: (name||'').trim() });
+    }
+    console.log(`[Articles] Загружено ${articlesCatalog.length} артикулов из таблицы`);
+  } catch(e) {
+    console.warn('[Articles] Не удалось загрузить каталог:', e.message);
+  }
+}
+
+function onNavArticleInput(e) {
+  const val = e.target.value.trim().toLowerCase();
+  const suggestEl = document.getElementById('navArticleSuggest');
+
+  if (val.length < 1) {
+    suggestEl.style.display = 'none';
+    // Сброс фильтра — показать все
+    STATE.navArticleFilter = null;
+    applyNavArticleFilter();
+    return;
+  }
+
+  const matches = articlesCatalog.filter(a =>
+    a.article.toLowerCase().includes(val) || a.name.toLowerCase().includes(val)
+  ).slice(0, 8);
+
+  if (matches.length === 0) {
+    suggestEl.style.display = 'none';
+    return;
+  }
+
+  suggestEl.innerHTML = matches.map(m => `
+    <div class="nav-suggest-item" onclick="selectNavArticle('${escAttr(m.article)}')"
+      style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)">
+      <strong>${escHtml(m.article)}</strong>${m.name ? ' — ' + escHtml(m.name.slice(0,40)) : ''}
+    </div>
+  `).join('');
+  suggestEl.style.display = 'block';
+
+  // Hover effect
+  suggestEl.querySelectorAll('.nav-suggest-item').forEach(item => {
+    item.addEventListener('mouseenter', () => item.style.background = 'var(--bg2)');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+  });
+}
+
+function selectNavArticle(article) {
+  document.getElementById('navArticleFilter').value = article;
+  document.getElementById('navArticleSuggest').style.display = 'none';
+  STATE.navArticleFilter = article;
+  applyNavArticleFilter();
+}
+
+function applyNavArticleFilter() {
+  const base = STATE.navArticleFilter
+    ? STATE.allReviews.filter(rv => {
+        const d = new Date(rv.createdDate || rv.updatedDate || '');
+        return d >= STATE.dateFrom && d <= STATE.dateTo && getArticle(rv) === STATE.navArticleFilter;
+      })
+    : STATE.allReviews.filter(rv => {
+        const d = new Date(rv.createdDate || rv.updatedDate || '');
+        return d >= STATE.dateFrom && d <= STATE.dateTo;
+      });
+  STATE.filtered = base;
+  STATE.reviewPage = 0;
+  renderAll();
+}
+
+// Закрыть подсказки при клике вне поля
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.nav-article-filter');
+  if (wrap && !wrap.contains(e.target)) {
+    const s = document.getElementById('navArticleSuggest');
+    if (s) s.style.display = 'none';
+  }
+});
 
 // ─── INIT ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
