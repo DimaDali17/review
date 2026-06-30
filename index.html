@@ -1764,21 +1764,51 @@ function generateDemoData() {
 }
 
 // ─── PROCESS DATA ─────────────────────────────────────────
+// WB разбивает один отзыв на родительский (звезда без текста) и дочерний
+// (childFeedbackId), который пользователь добавляет позже с текстом/фото.
+// Склеиваем их в один логический отзыв, чтобы KPI и тексты не дублировались.
+function mergeParentChildFeedbacks(reviews) {
+  const byId = {};
+  for (const r of reviews) byId[r.id] = r;
+
+  const merged = [];
+  const usedAsChild = new Set();
+
+  for (const r of reviews) {
+    if (r.parentFeedbackId && byId[r.parentFeedbackId]) {
+      // это дочерний — пропустим отдельно, объединим при обработке родителя
+      continue;
+    }
+    let combined = { ...r };
+    if (r.childFeedbackId && byId[r.childFeedbackId]) {
+      const child = byId[r.childFeedbackId];
+      usedAsChild.add(child.id);
+      combined.text = child.text || r.text || '';
+      combined.pros = child.pros || r.pros || '';
+      combined.cons = child.cons || r.cons || '';
+      combined.photoLinks = (child.photoLinks && child.photoLinks.length) ? child.photoLinks : r.photoLinks;
+      combined.video = child.video || r.video;
+      combined.createdDate = child.createdDate || r.createdDate;
+    }
+    merged.push(combined);
+  }
+  // Отзывы-дети, чьего родителя нет в выборке (родитель вне периода) — добавляем как есть
+  for (const r of reviews) {
+    if (r.parentFeedbackId && !byId[r.parentFeedbackId] && !usedAsChild.has(r.id)) {
+      merged.push(r);
+    }
+  }
+  return merged;
+}
+
 function processData() {
   showLoading('Обработка данных...', '');
 
+  STATE.allReviews = mergeParentChildFeedbacks(STATE.allReviews);
   const reviews = STATE.allReviews;
 
-  // Debug: log structure of first review to console
-  if (reviews.length > 0) {
-    console.log('[WB Debug] First review structure:', JSON.stringify(reviews[0], null, 2));
-    console.log('[WB Debug] Fields:', Object.keys(reviews[0]).join(', '));
-  }
-
-  // Debug: log first review structure
   if (reviews.length > 0) {
     console.log('[WB Debug] Fields:', Object.keys(reviews[0]).join(', '));
-    console.log('[WB Debug] First review:', JSON.stringify(reviews[0]).slice(0, 500));
   }
 
   // Строим индекс слов
