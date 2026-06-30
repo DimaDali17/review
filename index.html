@@ -1299,53 +1299,39 @@ canvas { max-height: 240px; }
 
 // ─── WB FIELD HELPERS ────────────────────────────────────
 function hasPhoto(rv) {
-  // WB feedbacks API returns photos in photoLinks array
-  return !!(
-    (rv.photoLinks && rv.photoLinks.length > 0) ||
-    (rv.photo && rv.photo.length > 0) ||
-    (rv.photos && rv.photos.length > 0) ||
-    (rv.media && rv.media.photo && rv.media.photo.length > 0) ||
-    (rv.mediaFiles && rv.mediaFiles.some(f => !f.type || f.type === 'photo' || f.isPhoto))
-  );
+  // Реальная структура WB: photoLinks — массив объектов {fullSize, miniSize}
+  return Array.isArray(rv.photoLinks) && rv.photoLinks.length > 0;
 }
 function hasPhotoFn(rv) { return hasPhoto(rv); }
 function hasVideo(rv) {
-  return !!(
-    (rv.video && rv.video.length > 0) ||
-    (rv.videoLinks && rv.videoLinks.length > 0) ||
-    (rv.videos && rv.videos.length > 0) ||
-    (rv.media && rv.media.video && rv.media.video.length > 0) ||
-    (rv.mediaFiles && rv.mediaFiles.some(f => f.type === 'video' || f.isVideo))
-  );
+  // Реальная структура WB: video — это ОБЪЕКТ {link, previewImage, durationSec} или null
+  return !!(rv.video && (rv.video.link || rv.video.previewImage));
 }
 function hasVideoFn(rv) { return hasVideo(rv); }
 function getPhotos(rv) {
-  const urls = [];
-  const sources = [
-    rv.photoLinks, rv.photo, rv.photos,
-    rv.media?.photo, rv.media?.photos
-  ].filter(Boolean);
-  for (const src of sources) {
-    for (const p of src) {
-      if (typeof p === 'string') urls.push(p);
-      else if (p.fullSize) urls.push(p.fullSize);
-      else if (p.miniSize) urls.push(p.miniSize);
-      else if (p.url) urls.push(p.url);
-      else if (p.link) urls.push(p.link);
-    }
-  }
-  if (rv.mediaFiles) rv.mediaFiles.filter(f=>!f.type||f.type==='photo').forEach(f=>f.url&&urls.push(f.url));
-  return [...new Set(urls)]; // deduplicate
+  if (!Array.isArray(rv.photoLinks)) return [];
+  return rv.photoLinks.map(p => p.fullSize || p.miniSize).filter(Boolean);
 }
 function getArticle(rv) {
-  // WB feedbacks API: primary key is nmId (product ID)
-  // supplierArticle/vendorCode are NOT in feedbacks response
-  if (rv.supplierArticle && rv.supplierArticle !== 'unknown') return rv.supplierArticle;
-  if (rv.vendorCode && rv.vendorCode !== 'unknown') return rv.vendorCode;
-  if (rv.article && rv.article !== 'unknown') return String(rv.article);
+  // Реальная структура WB: данные о товаре вложены в productDetails
+  const pd = rv.productDetails || {};
+  if (pd.supplierArticle) return pd.supplierArticle;
+  if (pd.nmId) return String(pd.nmId);
   if (rv.nmId) return String(rv.nmId);
-  if (rv.imtId) return 'IMT:'+String(rv.imtId);
+  if (pd.imtId) return 'IMT:' + String(pd.imtId);
   return '—';
+}
+function getNmId(rv) {
+  const pd = rv.productDetails || {};
+  return pd.nmId || rv.nmId || null;
+}
+function getProductName(rv) {
+  const pd = rv.productDetails || {};
+  return pd.productName || '';
+}
+function getBrandName(rv) {
+  const pd = rv.productDetails || {};
+  return pd.brandName || '';
 }
 
 // ─── STATE ─────────────────────────────────────────────
@@ -1380,11 +1366,7 @@ function getPhotos(rv) {
 }
 
 // Получить артикул продавца из отзыва
-function getArticle(rv) {
-  return rv.supplierArticle || rv.vendorCode || rv.article ||
-         (rv.nmId ? String(rv.nmId) : null) ||
-         (rv.imtId ? String(rv.imtId) : 'unknown');
-}
+// (getArticle определена ниже, с учётом реальной структуры WB)
 
 const STATE = {
   apiToken:   '',
@@ -1585,7 +1567,7 @@ async function fetchWBReviews(token, proxyUrl, dateFrom, dateTo) {
       for (const r of feedbacks) {
         const d = new Date(r.createdDate || r.updatedDate || '');
         // Дедупликация по id
-        const id = r.id || r.feedbackId || (r.nmId + '_' + r.createdDate);
+        const id = r.id || r.feedbackId || ((r.productDetails?.nmId||'') + '_' + r.createdDate);
         if (!seenIds.has(id) && d >= from && d <= to) {
           seenIds.add(id);
           allReviews.push(r);
@@ -2128,7 +2110,7 @@ function applyFilters() {
     if (reply === '0' && rv.answer?.text) return false;
     if (reply === '1' && !rv.answer?.text) return false;
     if (article) {
-      const art = String(rv.nmId || rv.article || '').toLowerCase();
+      const art = getArticle(rv).toLowerCase();
       if (!art.includes(article)) return false;
     }
     return true;
@@ -2174,8 +2156,10 @@ function makeReviewCard(rv, highlight) {
   const hasPhoto = hasPhotoFn(rv);
   const hasVideo = hasVideoFn(rv);
   const hasReply = !!(rv.answer?.text && rv.answer.text.trim().length > 0);
-  const size  = rv.subjectName || rv.sizeOptionName || '';
-  const color = rv.colorName || '';
+  const pd = rv.productDetails || {};
+  const size  = pd.size || rv.subjectName || '';
+  const color = rv.color || '';
+  const productName = pd.productName || '';
 
   const card = document.createElement('div');
   card.className = `review-card ${cls}`;
@@ -2327,7 +2311,7 @@ function openWordDetail(word, count) {
 
   const total = STATE.allReviews.length;
   const pct = total ? (count/total*100).toFixed(1) : 0;
-  const articles = [...new Set(reviews.map(r => String(r.nmId || r.article || '')))];
+  const articles = [...new Set(reviews.map(r => getArticle(r)))];
 
   document.getElementById('wdpStats').innerHTML = `
     <strong>${count}</strong> отзывов из ${total} (${pct}%)<br>
@@ -2393,7 +2377,7 @@ function _doSearch() {
   const pct   = total ? (matching.length/total*100).toFixed(1) : 0;
   const articles = {};
   for (const rv of matching) {
-    const a = String(rv.nmId||rv.article||'—');
+    const a = getArticle(rv);
     articles[a] = (articles[a]||0)+1;
   }
 
@@ -2458,7 +2442,7 @@ function renderSearchCharts(matching, articles) {
 
 // ─── PRODUCT MODAL ────────────────────────────────────────
 function openProduct(article) {
-  const reviews = STATE.filtered.filter(rv => String(rv.nmId || rv.article || '') === article);
+  const reviews = STATE.filtered.filter(rv => getArticle(rv) === article);
   if (reviews.length === 0) return;
 
   const modal = document.getElementById('productModal');
