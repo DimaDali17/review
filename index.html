@@ -44,8 +44,10 @@ html { font-family: var(--font-sans); font-size: 15px; color: var(--ink); backgr
 body { min-height: 100vh; }
 
 /* ─── SCREENS ─── */
-.screen { display: none; }
-.screen.active { display: block; }
+.screen { display: none !important; }
+.screen.active { display: block !important; }
+#loginScreen.active { display: flex !important; }
+/* merged above */
 
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1043,11 +1045,7 @@ canvas { max-height: 240px; }
       <!-- KPI Row -->
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Всего отзывов</div>
-          <div class="kpi-value" id="kpiTotal">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">За период</div>
+          <div class="kpi-label">Отзывов за период</div>
           <div class="kpi-value" id="kpiPeriod">—</div>
         </div>
         <div class="kpi-card">
@@ -1301,30 +1299,53 @@ canvas { max-height: 240px; }
 
 // ─── WB FIELD HELPERS ────────────────────────────────────
 function hasPhoto(rv) {
-  return !!(rv.photoLinks?.length || rv.photo?.length || rv.photos?.length ||
-            rv.mediaFiles?.some(f => !f.type || f.type === 'photo'));
+  // WB feedbacks API returns photos in photoLinks array
+  return !!(
+    (rv.photoLinks && rv.photoLinks.length > 0) ||
+    (rv.photo && rv.photo.length > 0) ||
+    (rv.photos && rv.photos.length > 0) ||
+    (rv.media && rv.media.photo && rv.media.photo.length > 0) ||
+    (rv.mediaFiles && rv.mediaFiles.some(f => !f.type || f.type === 'photo' || f.isPhoto))
+  );
 }
 function hasPhotoFn(rv) { return hasPhoto(rv); }
 function hasVideo(rv) {
-  return !!(rv.video?.length || rv.videoLinks?.length || rv.videos?.length ||
-            rv.mediaFiles?.some(f => f.type === 'video'));
+  return !!(
+    (rv.video && rv.video.length > 0) ||
+    (rv.videoLinks && rv.videoLinks.length > 0) ||
+    (rv.videos && rv.videos.length > 0) ||
+    (rv.media && rv.media.video && rv.media.video.length > 0) ||
+    (rv.mediaFiles && rv.mediaFiles.some(f => f.type === 'video' || f.isVideo))
+  );
 }
 function hasVideoFn(rv) { return hasVideo(rv); }
 function getPhotos(rv) {
   const urls = [];
-  const src = rv.photoLinks || rv.photo || rv.photos || [];
-  for (const p of src) {
-    if (typeof p === 'string') urls.push(p);
-    else if (p.fullSize) urls.push(p.fullSize);
-    else if (p.miniSize) urls.push(p.miniSize);
-    else if (p.url)      urls.push(p.url);
+  const sources = [
+    rv.photoLinks, rv.photo, rv.photos,
+    rv.media?.photo, rv.media?.photos
+  ].filter(Boolean);
+  for (const src of sources) {
+    for (const p of src) {
+      if (typeof p === 'string') urls.push(p);
+      else if (p.fullSize) urls.push(p.fullSize);
+      else if (p.miniSize) urls.push(p.miniSize);
+      else if (p.url) urls.push(p.url);
+      else if (p.link) urls.push(p.link);
+    }
   }
-  if (rv.mediaFiles) rv.mediaFiles.filter(f => !f.type||f.type==='photo').forEach(f=>f.url&&urls.push(f.url));
-  return urls;
+  if (rv.mediaFiles) rv.mediaFiles.filter(f=>!f.type||f.type==='photo').forEach(f=>f.url&&urls.push(f.url));
+  return [...new Set(urls)]; // deduplicate
 }
 function getArticle(rv) {
-  return rv.supplierArticle || rv.vendorCode || rv.article ||
-         (rv.nmId ? String(rv.nmId) : null) || 'unknown';
+  // WB feedbacks API: primary key is nmId (product ID)
+  // supplierArticle/vendorCode are NOT in feedbacks response
+  if (rv.supplierArticle && rv.supplierArticle !== 'unknown') return rv.supplierArticle;
+  if (rv.vendorCode && rv.vendorCode !== 'unknown') return rv.vendorCode;
+  if (rv.article && rv.article !== 'unknown') return String(rv.article);
+  if (rv.nmId) return String(rv.nmId);
+  if (rv.imtId) return 'IMT:'+String(rv.imtId);
+  return '—';
 }
 
 // ─── STATE ─────────────────────────────────────────────
@@ -1694,6 +1715,18 @@ function processData() {
 
   const reviews = STATE.allReviews;
 
+  // Debug: log structure of first review to console
+  if (reviews.length > 0) {
+    console.log('[WB Debug] First review structure:', JSON.stringify(reviews[0], null, 2));
+    console.log('[WB Debug] Fields:', Object.keys(reviews[0]).join(', '));
+  }
+
+  // Debug: log first review structure
+  if (reviews.length > 0) {
+    console.log('[WB Debug] Fields:', Object.keys(reviews[0]).join(', '));
+    console.log('[WB Debug] First review:', JSON.stringify(reviews[0]).slice(0, 500));
+  }
+
   // Строим индекс слов
   STATE.wordIndex = {};
   STATE.stems = [];
@@ -1828,13 +1861,18 @@ function renderKPIs() {
 
   const neg = r.filter(x => (x.productValuation||0) <= 3).length;
   const pos = r.filter(x => (x.productValuation||0) >= 4).length;
-  const noReply = r.filter(x => !(x.answer?.text && x.answer.text.trim().length > 0)).length;
+  // WB: unanswered = answer is null, or answer.text is empty/whitespace
+  const noReply = r.filter(x => {
+    const ans = x.answer;
+    if (!ans) return true;
+    if (typeof ans === 'string') return ans.trim().length === 0;
+    return !(ans.text && ans.text.trim().length > 0);
+  }).length;
   const photo = r.filter(x => hasPhoto(x)).length;
   const video = r.filter(x => hasVideo(x)).length;
 
   function pct(n) { return r.length ? Math.round(n / r.length * 100) + '%' : '0%'; }
 
-  set('kpiTotal',   total.toLocaleString('ru'));
   set('kpiPeriod',  period.toLocaleString('ru'));
   set('kpiAvg',     avg);
   set('kpiStars',   '⭐'.repeat(Math.round(avgRaw)));
@@ -1904,7 +1942,7 @@ function renderCharts() {
       STATE.charts['timeline'] = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: days.map(d => d.slice(5)),
+          labels: days.map(d => { const p=d.slice(5).split('-'); return p[1]+'.'+p[0]; }),
           datasets: [{ label: 'Отзывы', data: days.map(d => byDay[d]),
             backgroundColor: 'rgba(26,24,20,0.12)', borderColor: CHART_COLORS.ink,
             borderWidth: 1, borderRadius: 3 }]
@@ -1924,12 +1962,43 @@ function renderCharts() {
       STATE.charts['ratings'] = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['★','★★','★★★','★★★★','★★★★★'],
+          labels: ['1★','2★','3★','4★','5★'],
           datasets: [{ data: ratingCounts,
-            backgroundColor: ['#C0392B','#E74C3C','#F39C12','#2ECC71','#27AE60'],
-            borderWidth: 2, borderColor: '#FAF8F4' }]
+            backgroundColor: ['#C0392B','#E74C3C','#F0A500','#52BE80','#1E8449'],
+            borderWidth: 3, borderColor: '#FAF8F4',
+            hoverOffset: 6 }]
         },
-        options: { ...chartDefaults(), scales: undefined }
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                font: { family: 'Courier New', size: 12 },
+                color: '#4A4640',
+                padding: 12,
+                usePointStyle: true,
+                pointStyleWidth: 10,
+              }
+            },
+            tooltip: {
+              backgroundColor: '#FAF8F4',
+              titleColor: '#1A1814',
+              bodyColor: '#4A4640',
+              borderColor: '#D8D2C6',
+              borderWidth: 1,
+              callbacks: {
+                label: function(ctx) {
+                  const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+                  const pct = total ? Math.round(ctx.parsed/total*100) : 0;
+                  return ' ' + ctx.parsed + ' отзывов (' + pct + '%)';
+                }
+              }
+            }
+          }
+        }
       });
     }
   }
@@ -1992,7 +2061,7 @@ function renderCharts() {
       STATE.charts['avgRating'] = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: ratingDays.map(d => d.slice(5)),
+          labels: ratingDays.map(d => { const p=d.slice(5).split('-'); return p[1]+'.'+p[0]; }),
           datasets: [{ label: 'Ср. оценка', data: ratingDays.map(d => +(byDayRating[d].sum/byDayRating[d].cnt).toFixed(2)),
             borderColor: CHART_COLORS.green, backgroundColor: 'rgba(46,125,82,0.08)',
             tension: 0.4, fill: true, pointRadius: 2 }]
@@ -2548,10 +2617,10 @@ function showScreen(id) {
   hideLoading();
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.remove('active');
-    s.style.display = 'none';
+    s.removeAttribute('style');
   });
   const el = document.getElementById(id);
-  if (el) { el.classList.add('active'); el.style.display = ''; }
+  if (el) el.classList.add('active');
 }
 
 function logout() {
