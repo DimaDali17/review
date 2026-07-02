@@ -2009,13 +2009,49 @@ function normalizeStem(s) {
 }
 
 // Возвращает сгруппированные частоты с учётом синонимов
-// strictMode=true: показываем ТОЛЬКО группы из обученного словаря (Обзор —
-// требуется высокая точность, единичные случайные слова не должны мелькать).
-// strictMode=false: добавляем fallback по стеммам (Текстовый анализ — нужна полнота).
-function getGroupedWordFreq(indices, topN = 50, strictMode = false) {
+// Группы слов которые в НЕГАТИВНОМ топе считаются только если рядом НЕТ отрицания.
+// Например «утягивают» в позитивном отзыве с «не утягивают» — это ПЛЮС, не минус.
+// Также группы которые в ПОЗИТИВНОМ топе не должны появляться (явно негативные слова).
+const NEG_ONLY_IF_NOT_NEGATED = new Set([
+  'Утягивает',          // «не утягивают» = хорошо; «утягивает» (без не) = жмёт
+  'Удобство',           // «неудобно» = плохо; «удобно» = хорошо — фильтруем в neg
+  'Не дышит / дышит',  // «дышит» = хорошо; «не дышит» = плохо
+  'Жарко / потеет',     // «не жарко» = хорошо
+  'Сползает',           // «не сползает» = хорошо
+  'Закатывается / скручивается', // «не закатывается» = хорошо
+  'Давит / жмёт',       // «не давит» = хорошо
+  'Натирает',           // «не натирает» = хорошо
+  'Скатывается / катышки', // «не скатывается» = хорошо
+]);
+
+// Группы которые НИКОГДА не должны быть в топе негатива
+// (слова встречаются в негативных отзывах но описывают плюсы/нейтраль)
+const NEVER_IN_NEG_TOP = new Set([
+  'Понравилось','Рекомендую','Спасибо','Лёгкий','Красивый','Нежный',
+  'Мягкость','Соответствует описанию',
+]);
+
+// Группы которые НИКОГДА не должны быть в топе позитива
+const NEVER_IN_POS_TOP = new Set([
+  'Нитки торчат/брак','Шов разошёлся','Дырка / дыры',
+  'Давит / жмёт','Задирается','Возврат/отказ',
+]);
+
+const NEGATORS_SET = new Set(['не','ни','без','нет','никак','никогда']);
+
+// Проверяет есть ли отрицание перед данным словом в сыром тексте отзыва
+function hasNegationBefore(rv, word) {
+  const text = [rv.text, rv.pros, rv.cons].filter(Boolean).join(' ').toLowerCase();
+  const pattern = new RegExp('(?:не|ни|без|нет)\s+\S*' + word.slice(0,4), 'i');
+  return pattern.test(text);
+}
+
+// sentiment: 'neg' | 'pos' | null (для нейтрального/общего)
+function getGroupedWordFreq(indices, topN = 50, strictMode = false, sentiment = null) {
   const freq = {};
   const src = indices !== null ? indices : STATE.allReviews.map((_, i) => i);
   for (const i of src) {
+    const rv = STATE.allReviews[i];
     const rawTokens = STATE.rawTokens?.[i] || [];
     const stemTokens = STATE.stems[i] || [];
     const seen = new Set();
@@ -2023,22 +2059,34 @@ function getGroupedWordFreq(indices, topN = 50, strictMode = false) {
     // 1) Точный словарь, обученный на реальных отзывах — приоритет
     for (const w of rawTokens) {
       const label = WORD_FORM_TO_GROUP[w];
-      if (label) {
-        if (!seen.has(label)) { seen.add(label); freq[label] = (freq[label]||0)+1; }
+      if (!label) continue;
+      if (seen.has(label)) continue;
+
+      // Фильтры по sentiment
+      if (sentiment === 'neg') {
+        if (NEVER_IN_NEG_TOP.has(label)) continue;
+        // Для амбивалентных слов: пропускаем если перед словом есть отрицание
+        // (значит клиент говорит это как плюс: «не утягивают» = хорошо)
+        if (NEG_ONLY_IF_NOT_NEGATED.has(label) && hasNegationBefore(rv, w)) continue;
       }
+      if (sentiment === 'pos') {
+        if (NEVER_IN_POS_TOP.has(label)) continue;
+      }
+
+      seen.add(label);
+      freq[label] = (freq[label]||0)+1;
     }
 
-    if (strictMode) continue; // пропускаем fallback по стеммам
+    if (strictMode) continue;
 
-    // 2) Fallback: для слов, которых нет в обученном словаре, используем
-    // старую группировку по стеммам (с порогом длины, чтобы не плодить мусор)
+    // 2) Fallback по стеммам (только для вкладки Текстовый анализ)
     for (const t of stemTokens) {
       const norm = normalizeStem(t);
       const isGrouped = norm !== t;
       if (!isGrouped && t.length < MIN_UNGROUPED_LEN) continue;
       if (seen.has(norm)) continue;
       seen.add(norm);
-      freq[norm] = (freq[norm] || 0) + 1;
+      freq[norm] = (freq[norm]||0)+1;
     }
   }
   return Object.entries(freq)
@@ -2272,7 +2320,7 @@ function renderCharts() {
   // слова из неклассифицированного fallback не должны попадать в график.
   destroyChart('topProblems');
   const negIdxsForChart = r.filter(x => (x.productValuation||0) <= 3).map(rv => STATE.allReviews.indexOf(rv));
-  const wf = getGroupedWordFreq(negIdxsForChart, 8, true);
+  const wf = getGroupedWordFreq(negIdxsForChart, 8, true, 'neg');
 
   // Предупреждение при маленькой выборке негативных отзывов — иначе график
   // выглядит как системная проблема, хотя это просто шум из 1-2 отзывов
@@ -2557,8 +2605,8 @@ function renderTextAnalysis() {
     .filter(rv => (rv.productValuation||0) >= 4)
     .map(rv => STATE.allReviews.indexOf(rv));
 
-  const negWords = getGroupedWordFreq(negIdxs, 50);
-  const posWords = getGroupedWordFreq(posIdxs, 50);
+  const negWords = getGroupedWordFreq(negIdxs, 50, false, 'neg');
+  const posWords = getGroupedWordFreq(posIdxs, 50, false, 'pos');
 
   renderCollapsibleWordCloud('negGroupedWords', 'negShowMoreBtn', negWords, 'neg', expandedLists.neg);
   renderCollapsibleWordCloud('posGroupedWords', 'posShowMoreBtn', posWords, 'pos', expandedLists.pos);
@@ -2868,8 +2916,8 @@ function openProduct(article) {
   // Word clouds — используем обученный словарь
   const negIdx = reviews.filter(r=>(r.productValuation||0)<=3).map(r=>STATE.allReviews.indexOf(r));
   const posIdx = reviews.filter(r=>(r.productValuation||0)>=4).map(r=>STATE.allReviews.indexOf(r));
-  renderWordCloud('modalNegWords', getGroupedWordFreq(negIdx, 15, true), 'neg', reviews);
-  renderWordCloud('modalPosWords', getGroupedWordFreq(posIdx, 15, true), 'pos', reviews);
+  renderWordCloud('modalNegWords', getGroupedWordFreq(negIdx, 15, true, 'neg'), 'neg', reviews);
+  renderWordCloud('modalPosWords', getGroupedWordFreq(posIdx, 15, true, 'pos'), 'pos', reviews);
 
   // Reviews
   const container = document.getElementById('modalReviews');
