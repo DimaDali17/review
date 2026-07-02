@@ -220,7 +220,10 @@ body { min-height: 100vh; }
   top: 0;
   z-index: 100;
   box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+  transition: top 0.15s ease;
 }
+/* Когда плашка фильтра видна — шапка прилипает чуть ниже неё, не перекрывая */
+body.has-active-filter .topnav { top: 41px; }
 
 .nav-brand {
   display: flex;
@@ -920,9 +923,10 @@ canvas { max-height: 240px; }
 ══════════════════════════════════════════ */
 .active-filter-bar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: var(--amber-bg); border: 1px solid #F9E79F;
-  border-radius: var(--radius-sm); padding: 10px 16px; margin: 0 24px 16px;
+  background: var(--amber-bg); border-bottom: 1px solid #F9E79F;
+  padding: 10px 24px;
   font-size: 12px; color: var(--amber);
+  position: sticky; top: 0; z-index: 110;
 }
 .active-filter-bar strong { color: var(--ink); }
 .filter-chip {
@@ -1031,6 +1035,14 @@ canvas { max-height: 240px; }
 <!-- ═══════════════════════════════ MAIN DASHBOARD ═══════════════════════════════ -->
 <div id="dashboardScreen" class="screen">
 
+  <!-- Active filter bar — на самом верху, всегда видна когда выбран артикул -->
+  <div id="activeFilterBar" class="active-filter-bar" style="display:none">
+    <strong>Фильтр по артикулам:</strong>
+    <div id="filterChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <span id="filterCountInfo" style="color:var(--ink3)"></span>
+    <button class="btn-clear-filter" onclick="clearArticleFilter()">Очистить</button>
+  </div>
+
   <!-- TOP NAV -->
   <nav class="topnav">
     <div class="nav-brand">
@@ -1074,13 +1086,7 @@ canvas { max-height: 240px; }
     </div>
   </nav>
 
-  <!-- Active filter bar (показывается только если выбран хотя бы один артикул) -->
-  <div id="activeFilterBar" class="active-filter-bar" style="display:none">
-    <strong>Фильтр по артикулам:</strong>
-    <div id="filterChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-    <span id="filterCountInfo" style="color:var(--ink3)"></span>
-    <button class="btn-clear-filter" onclick="clearArticleFilter()">Очистить</button>
-  </div>
+
 
   <!-- TABS -->
   <div class="tabs-bar">
@@ -1089,6 +1095,7 @@ canvas { max-height: 240px; }
     <button class="tab" data-tab="products" onclick="switchTab('products')">Товары</button>
     <button class="tab" data-tab="textanalysis" onclick="switchTab('textanalysis')">Текстовый анализ</button>
     <button class="tab" data-tab="search" onclick="switchTab('search')">Поиск</button>
+    <button class="tab" data-tab="dictionary" onclick="switchTab('dictionary')">Словарь групп</button>
   </div>
 
   <div class="dashboard-content">
@@ -1283,6 +1290,38 @@ canvas { max-height: 240px; }
       </div>
       <div id="searchEmpty" class="empty-state" style="display:none">
         Ничего не найдено по вашему запросу
+      </div>
+    </div>
+
+    <!-- ────────── TAB: DICTIONARY EDITOR ────────── -->
+    <div id="tab-dictionary" class="tab-content">
+      <div class="analysis-card full" style="margin-bottom:14px">
+        <div class="analysis-title">📚 Словарь групп слов</div>
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:14px;line-height:1.6">
+          Словарь обучен на 31 000+ реальных отзывов. Здесь можно увидеть все группы и слова в них,
+          переименовать группу, добавить новое слово в существующую группу или скрыть мусорное слово.
+          Изменения сохраняются в общий репозиторий — их увидят все, кто открывает дашборд.
+        </div>
+
+        <div id="dictGithubAuth" style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <input type="password" id="dictGithubToken" placeholder="GitHub токен (для сохранения правок)"
+            style="flex:1;min-width:240px;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px" />
+          <button class="btn-apply" onclick="saveGithubToken()">Запомнить</button>
+          <span id="dictAuthStatus" style="font-size:12px;color:var(--ink3)"></span>
+        </div>
+
+        <div id="dictPendingSection" style="display:none;margin-bottom:16px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--amber)">⏳ Правки на рассмотрении</div>
+          <div id="dictPendingList" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <input type="text" id="dictSearchInput" placeholder="Поиск группы или слова..."
+            oninput="renderDictionaryEditor()"
+            style="flex:1;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px" />
+        </div>
+
+        <div id="dictGroupsList" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
     </div>
 
@@ -1720,6 +1759,7 @@ async function loadDashboard() {
     showScreen('dashboardScreen');
     updateNavDates();
     loadArticlesCatalog(); // фоновая загрузка, не блокирует UI
+    loadDictionaryFile().then(applyDictOverrides); // подтягиваем общие правки словаря
 
   } catch (e) {
     hideLoading();
@@ -1864,78 +1904,73 @@ function processData() {
 // исключает названия товаров и общие оценочные слова без конкретики ("хорошо","всё").
 const WORD_FORM_TO_GROUP = {"скатываться":"Скатывается / катышки","скатывается":"Скатывается / катышки","скатывались":"Скатывается / катышки","скатываются":"Скатывается / катышки","скатывающимися":"Скатывается / катышки","скатывалась":"Скатывается / катышки","скатались":"Скатывается / катышки","скаталось":"Скатывается / катышки","скаталась":"Скатывается / катышки","скатался":"Скатывается / катышки","скатавшись":"Скатывается / катышки","скататься":"Скатывается / катышки","катышек":"Скатывается / катышки","катышками":"Скатывается / катышки","катышки":"Скатывается / катышки","катышках":"Скатывается / катышки","катышков":"Скатывается / катышки","размера":"Размер не совпадает","размерах":"Размер не совпадает","размерам":"Размер не совпадает","размеры":"Размер не совпадает","размеру":"Размер не совпадает","размеров":"Размер не совпадает","размерами":"Размер не совпадает","размером":"Размер не совпадает","размере":"Размер не совпадает","размер":"Размер не совпадает","маломерит":"Размер: маломерит","маломерили":"Размер: маломерит","маломерят":"Размер: маломерит","маломерить":"Размер: маломерит","большемерят":"Размер: большемерит","большемерит":"Размер: большемерит","большемерить":"Размер: большемерит","швы":"Шов / швы","швами":"Шов / швы","шву":"Шов / швы","швов":"Шов / швы","шов":"Шов / швы","шве":"Шов / швы","шва":"Шов / швы","швам":"Шов / швы","швом":"Шов / швы","разошелся":"Шов разошёлся","разошёлся":"Шов разошёлся","разошлись":"Шов разошёлся","разойдётся":"Шов разошёлся","разошлась":"Шов разошёлся","разошлось":"Шов разошёлся","разойтись":"Шов разошёлся","расходятся":"Шов разошёлся","расходиться":"Шов разошёлся","расходится":"Шов разошёлся","давило":"Давит / жмёт","давят":"Давит / жмёт","давить":"Давит / жмёт","давит":"Давит / жмёт","жмёт":"Давит / жмёт","жмет":"Давит / жмёт","жмут":"Давит / жмёт","жать":"Давит / жмёт","потуже":"Давит / жмёт","тугую":"Давит / жмёт","тугая":"Давит / жмёт","тугие":"Давит / жмёт","тугой":"Давит / жмёт","сползать":"Сползает","сползают":"Сползает","сползает":"Сползает","сползали":"Сползает","закатывается":"Закатывается / скручивается","закатываются":"Закатывается / скручивается","закатывались":"Закатывается / скручивается","закатываться":"Закатывается / скручивается","скручиваются":"Закатывается / скручивается","скручиваться":"Закатывается / скручивается","скручивается":"Закатывается / скручивается","скручивались":"Закатывается / скручивается","задирались":"Задирается","задираться":"Задирается","задираются":"Задирается","задирается":"Задирается","резинками":"Резинка","резинки":"Резинка","резинкой":"Резинка","резинку":"Резинка","резинка":"Резинка","резинках":"Резинка","резинке":"Резинка","резинок":"Резинка","тонкий":"Тонкий материал","тонкую":"Тонкий материал","тонких":"Тонкий материал","тонкими":"Тонкий материал","тонкой":"Тонкий материал","тонким":"Тонкий материал","тонкая":"Тонкий материал","тончайшие":"Тонкий материал","тонкое":"Тонкий материал","тончайшая":"Тонкий материал","тонкие":"Тонкий материал","тоньше":"Тонкий материал","тончайшее":"Тонкий материал","тонки":"Тонкий материал","потоньше":"Тонкий материал","тоненькие":"Тонкий материал","тоненькое":"Тонкий материал","тоненькая":"Тонкий материал","тоненький":"Тонкий материал","тёплый":"Тёплый / тепло","теплой":"Тёплый / тепло","тёплую":"Тёплый / тепло","теплого":"Тёплый / тепло","теплыми":"Тёплый / тепло","теплый":"Тёплый / тепло","тёплым":"Тёплый / тепло","теплое":"Тёплый / тепло","теплые":"Тёплый / тепло","тёплых":"Тёплый / тепло","тёплое":"Тёплый / тепло","тёплом":"Тёплый / тепло","теплее":"Тёплый / тепло","тёплая":"Тёплый / тепло","потеплее":"Тёплый / тепло","теплую":"Тёплый / тепло","теплых":"Тёплый / тепло","теплая":"Тёплый / тепло","тёплыми":"Тёплый / тепло","теплы":"Тёплый / тепло","тёплые":"Тёплый / тепло","теплом":"Тёплый / тепло","тепле":"Тёплый / тепло","тепла":"Тёплый / тепло","теплу":"Тёплый / тепло","тепло":"Тёплый / тепло","тепленькие":"Тёплый / тепло","тёпленькие":"Тёплый / тепло","тепленькая":"Тёплый / тепло","тёпленько":"Тёплый / тепло","тёпленькая":"Тёплый / тепло","тепленький":"Тёплый / тепло","тёпленькое":"Тёплый / тепло","тёпленький":"Тёплый / тепло","греть":"Тёплый / тепло","греет":"Тёплый / тепло","греющие":"Тёплый / тепло","грело":"Тёплый / тепло","греют":"Тёплый / тепло","жарко":"Жарко / потеет","жары":"Жарко / потеет","жаре":"Жарко / потеет","жара":"Жарко / потеет","жару":"Жарко / потеет","потеть":"Жарко / потеет","потеешь":"Жарко / потеет","потеют":"Жарко / потеет","потела":"Жарко / потеет","потеет":"Жарко / потеет","потели":"Жарко / потеет","холодно":"Холодно / мёрзнут","мерзну":"Холодно / мёрзнут","мёрзли":"Холодно / мёрзнут","мёрзну":"Холодно / мёрзнут","мерзнем":"Холодно / мёрзнут","мерзнет":"Холодно / мёрзнут","мёрзнуть":"Холодно / мёрзнут","мерзли":"Холодно / мёрзнут","мёрзнут":"Холодно / мёрзнут","мёрзнет":"Холодно / мёрзнут","мерзнут":"Холодно / мёрзнут","мерзнуть":"Холодно / мёрзнут","качество":"Качество","качестве":"Качество","качеству":"Качество","качеством":"Качество","качества":"Качество","качеств":"Качество","качественное":"Качество","качественнее":"Качество","качественная":"Качество","качественную":"Качество","качественные":"Качество","качественный":"Качество","натирать":"Натирает","натираете":"Натирает","натирающих":"Натирает","натираю":"Натирает","натирает":"Натирает","натираемом":"Натирает","натирала":"Натирает","натирали":"Натирает","натирай":"Натирает","натирают":"Натирает","натирало":"Натирает","натиранием":"Натирает","натирания":"Натирает","натирание":"Натирает","натираний":"Натирает","натиранию":"Натирает","натираниях":"Натирает","ногой":"Ноги / стопы","нога":"Ноги / стопы","ноге":"Ноги / стопы","ногами":"Ноги / стопы","ног":"Ноги / стопы","ноги":"Ноги / стопы","ногам":"Ноги / стопы","ногах":"Ноги / стопы","ногу":"Ноги / стопы","пятке":"Ноги / стопы","пятку":"Ноги / стопы","пятки":"Ноги / стопы","пятка":"Ноги / стопы","пятках":"Ноги / стопы","носками":"Носки (товар)","носках":"Носки (товар)","носков":"Носки (товар)","носок":"Носки (товар)","носочки":"Носки (товар)","носочками":"Носки (товар)","носочках":"Носки (товар)","носочек":"Носки (товар)","носочков":"Носки (товар)","носка":"Носки (товар)","носки":"Носки (товар)","носке":"Носки (товар)","ноской":"Носки (товар)","носку":"Носки (товар)","носкам":"Носки (товар)","ткань":"Ткань / материал","тканью":"Ткань / материал","тканями":"Ткань / материал","ткани":"Ткань / материал","материалов":"Ткань / материал","материалам":"Ткань / материал","материала":"Ткань / материал","материал":"Ткань / материал","нитка":"Нитки торчат/брак","нитками":"Нитки торчат/брак","нитках":"Нитки торчат/брак","ниткой":"Нитки торчат/брак","ниток":"Нитки торчат/брак","нитки":"Нитки торчат/брак","нитку":"Нитки торчат/брак","тянется":"Растягивается","тянущиеся":"Растягивается","тянутся":"Растягивается","тянущийся":"Растягивается","тянуться":"Растягивается","тянущаяся":"Растягивается","растянулась":"Растягивается","растянулся":"Растягивается","растянулись":"Растягивается","растянутся":"Растягивается","растянуться":"Растягивается","цвет":"Цвет / линяет","цвета":"Цвет / линяет","цвете":"Цвет / линяет","цветом":"Цвет / линяет","цвету":"Цвет / линяет","цветов":"Цвет / линяет","просвечивающая":"Просвечивает","просвечивает":"Просвечивает","просвечивающим":"Просвечивает","просвечивают":"Просвечивает","просвечивающий":"Просвечивает","просвечивающей":"Просвечивает","просвечивать":"Просвечивает","прозрачную":"Просвечивает","прозрачный":"Просвечивает","прозрачно":"Просвечивает","прозрачные":"Просвечивает","прозрачное":"Просвечивает","прозрачным":"Просвечивает","короткая":"Короткое","покороче":"Короткое","коротких":"Короткое","короткий":"Короткое","коротким":"Короткое","короткое":"Короткое","короткую":"Короткое","коротка":"Короткое","короткой":"Короткое","короткие":"Короткое","коротковатая":"Короткое","коротковата":"Короткое","коротковат":"Короткое","коротковатые":"Короткое","коротковато":"Короткое","коротковаты":"Короткое","коротковатый":"Короткое","длинный":"Длинное","длиннее":"Длинное","длинной":"Длинное","длинные":"Длинное","длинными":"Длинное","длинна":"Длинное","длинная":"Длинное","длинную":"Длинное","длинным":"Длинное","длинны":"Длинное","дырками":"Дырка / дыры","дырках":"Дырка / дыры","дырку":"Дырка / дыры","дырки":"Дырка / дыры","дырок":"Дырка / дыры","дырка":"Дырка / дыры","дыркой":"Дырка / дыры","дырявый":"Дырка / дыры","утягивающий":"Утягивает","утягивающую":"Утягивает","утягивающее":"Утягивает","утягивать":"Утягивает","утягивающих":"Утягивает","утягивал":"Утягивает","утягивают":"Утягивает","утягивающим":"Утягивает","утягивающего":"Утягивает","утягивает":"Утягивает","утягивающие":"Утягивает","утягивающая":"Утягивает","утягивающей":"Утягивает","утягивали":"Утягивает","утяжки":"Утягивает","утяжками":"Утягивает","утяжкой":"Утягивает","утяжку":"Утягивает","утяжка":"Утягивает","стирке":"Стирка","стирка":"Стирка","стирок":"Стирка","стирки":"Стирка","стирку":"Стирка","посадкой":"Посадка/как сидит","посадки":"Посадка/как сидит","посадка":"Посадка/как сидит","посадку":"Посадка/как сидит","посадке":"Посадка/как сидит","сидит":"Посадка/как сидит","сидят":"Посадка/как сидит","сидела":"Посадка/как сидит","сидеть":"Посадка/как сидит","сидели":"Посадка/как сидит","сидишь":"Посадка/как сидит","сидел":"Посадка/как сидит","талии":"Талия","талию":"Талия","талия":"Талия","талией":"Талия","бедрами":"Бедро","бедру":"Бедро","бёдра":"Бедро","бедра":"Бедро","бедер":"Бедро","бёдрах":"Бедро","бедрах":"Бедро","бёдер":"Бедро","бёдрам":"Бедро","бедре":"Бедро","бедро":"Бедро","живот":"Живот","животу":"Живот","живота":"Живот","животе":"Живот","возврат":"Возврат/отказ","возврату":"Возврат/отказ","отказ":"Возврат/отказ","прислали":"Доставка/упаковка","прислано":"Доставка/упаковка","пришли":"Доставка/упаковка","прислать":"Доставка/упаковка","доставке":"Доставка/упаковка","доставки":"Доставка/упаковка","доставку":"Доставка/упаковка","доставка":"Доставка/упаковка","цене":"Цена","цену":"Цена","цены":"Цена","цена":"Цена","ценой":"Цена","денежка":"Цена","синтетику":"Синтетика","синтетика":"Синтетика","синтетики":"Синтетика","синтетик":"Синтетика","термо":"Термо-эффект","дышащее":"Не дышит / дышит","дышащий":"Не дышит / дышит","дышит":"Не дышит / дышит","дышащая":"Не дышит / дышит","дышащими":"Не дышит / дышит","дышат":"Не дышит / дышит","дышащего":"Не дышит / дышит","дышащие":"Не дышит / дышит","дышать":"Не дышит / дышит","приятная":"Приятный (материал/ощупь)","приятные":"Приятный (материал/ощупь)","приятен":"Приятный (материал/ощупь)","приятное":"Приятный (материал/ощупь)","приятнее":"Приятный (материал/ощупь)","приятным":"Приятный (материал/ощупь)","приятней":"Приятный (материал/ощупь)","приятны":"Приятный (материал/ощупь)","приятный":"Приятный (материал/ощупь)","приятными":"Приятный (материал/ощупь)","приятна":"Приятный (материал/ощупь)","ощупь":"Приятный (материал/ощупь)","приятно":"Приятный (материал/ощупь)","мягкое":"Мягкость","мягка":"Мягкость","мягкими":"Мягкость","мягче":"Мягкость","мягкие":"Мягкость","мягкой":"Мягкость","мягкий":"Мягкость","мягки":"Мягкость","мягким":"Мягкость","мягкая":"Мягкость","мягчайшие":"Мягкость","удобное":"Удобство","удобен":"Удобство","удобные":"Удобство","удобными":"Удобство","удобнее":"Удобство","удобный":"Удобство","удобны":"Удобство","удобная":"Удобство","удобно":"Удобство","комфортная":"Удобство","комфортными":"Удобство","комфортное":"Удобство","комфортного":"Удобство","комфортны":"Удобство","комфортнее":"Удобство","комфортна":"Удобство","комфортные":"Удобство","комфортную":"Удобство","комфортный":"Удобство","комфортно":"Удобство","рекомендовала":"Рекомендую","рекомендуем":"Рекомендую","рекомендованы":"Рекомендую","рекомендую":"Рекомендую","рекомендовать":"Рекомендую","советую":"Рекомендую","советовать":"Рекомендую","спасибо":"Спасибо","понравится":"Понравилось","понравятся":"Понравилось","понравилось":"Понравилось","понравились":"Понравилось","понравилась":"Понравилось","понравился":"Понравилось","понравиться":"Понравилось","довольная":"Понравилось","доволен":"Понравилось","довольна":"Понравилось","довольны":"Понравилось","довольный":"Понравилось","нравиться":"Понравилось","нравится":"Понравилось","нравятся":"Понравилось","нравились":"Понравилось","лёгкая":"Лёгкий","лёгким":"Лёгкий","лёгкое":"Лёгкий","легкое":"Лёгкий","легкой":"Лёгкий","лёгкой":"Лёгкий","легкими":"Лёгкий","лёгкий":"Лёгкий","легче":"Лёгкий","легчайшая":"Лёгкий","легкая":"Лёгкий","легкие":"Лёгкий","лёгкие":"Лёгкий","невесомы":"Лёгкий","невесомые":"Лёгкий","невесомый":"Лёгкий","невесомая":"Лёгкий","плотными":"Плотность ткани","плотный":"Плотность ткани","плотного":"Плотность ткани","плотнее":"Плотность ткани","плотное":"Плотность ткани","поплотнее":"Плотность ткани","плотная":"Плотность ткани","плотной":"Плотность ткани","плотные":"Плотность ткани","плотную":"Плотность ткани","толстые":"Плотность ткани","толстыми":"Плотность ткани","толстый":"Плотность ткани","толстую":"Плотность ткани","потолще":"Плотность ткани","соответствуют":"Соответствует описанию","соответствует":"Соответствует описанию","соответствовать":"Соответствует описанию","красивая":"Красивый","красивый":"Красивый","красивое":"Красивый","красивые":"Красивый","замечательно":"Красивый","замечательное":"Красивый","замечательная":"Красивый","замечательные":"Красивый","замечательный":"Красивый","шикарный":"Красивый","шикарная":"Красивый","шикарное":"Красивый","шикарных":"Красивый","шикарнейший":"Красивый","шикарные":"Красивый","шикарнейшие":"Красивый","кожа":"Качество кожи","кожи":"Качество кожи","кожей":"Качество кожи","коже":"Качество кожи","кожу":"Качество кожи","нежном":"Нежный","нежные":"Нежный","нежное":"Нежный","нежнее":"Нежный","нежный":"Нежный","нежного":"Нежный","нежнейший":"Нежный","нежнейшие":"Нежный","нежная":"Нежный"};
 
+// ВАЖНО: ярлыки здесь должны ТОЧНО совпадать с ярлыками из WORD_FORM_TO_GROUP
+// (обученного словаря выше), иначе одно и то же слово в разных формах
+// (найденное через словарь vs через этот fallback) даёт дубли в топах.
 const STEM_GROUPS = [
   { prefix: 'шв',        label: 'Шов / швы' },
   { prefix: 'шов',       label: 'Шов / швы' },
   { prefix: 'дыр',       label: 'Дырка / дыры' },
-  { prefix: 'катыш',     label: 'Катышки' },
-  { prefix: 'скатыв',    label: 'Катышки (скатывается)' },
-  { prefix: 'скатк',     label: 'Катышки (скатывается)' },
-  { prefix: 'скатал',    label: 'Катышки (скатывается)' },
-  { prefix: 'скат',      label: 'Катышки (скатывается)' },
+  { prefix: 'катыш',     label: 'Скатывается / катышки' },
+  { prefix: 'скатыв',    label: 'Скатывается / катышки' },
+  { prefix: 'скатк',     label: 'Скатывается / катышки' },
+  { prefix: 'скатал',    label: 'Скатывается / катышки' },
+  { prefix: 'скат',      label: 'Скатывается / катышки' },
   { prefix: 'просвеч',   label: 'Просвечивает' },
-  { prefix: 'прозрачн',  label: 'Просвечивает / прозрачный' },
+  { prefix: 'прозрачн',  label: 'Просвечивает' },
   { prefix: 'резин',     label: 'Резинка' },
   { prefix: 'размер',    label: 'Размер не совпадает' },
   { prefix: 'маломер',   label: 'Размер: маломерит' },
   { prefix: 'большемер', label: 'Размер: большемерит' },
   { prefix: 'качеств',   label: 'Качество' },
-  { prefix: 'некачеств', label: 'Плохое качество' },
-  { prefix: 'цвет',      label: 'Цвет' },
-  { prefix: 'окраш',     label: 'Окраска / линяет' },
-  { prefix: 'облез',     label: 'Облезает' },
-  { prefix: 'полиня',    label: 'Линяет' },
+  { prefix: 'некачеств', label: 'Качество' },
+  { prefix: 'цвет',      label: 'Цвет / линяет' },
+  { prefix: 'окраш',     label: 'Цвет / линяет' },
+  { prefix: 'облез',     label: 'Цвет / линяет' },
+  { prefix: 'полиня',    label: 'Цвет / линяет' },
   { prefix: 'мягк',      label: 'Мягкость' },
   { prefix: 'удобн',     label: 'Удобство' },
-  { prefix: 'комфорт',   label: 'Комфорт' },
-  { prefix: 'жарк',      label: 'Жарко / не дышит' },
-  { prefix: 'дыш',       label: 'Жарко / не дышит' },
+  { prefix: 'комфорт',   label: 'Удобство' },
+  { prefix: 'жарк',      label: 'Жарко / потеет' },
+  { prefix: 'дыш',       label: 'Не дышит / дышит' },
   { prefix: 'коротк',    label: 'Короткое' },
   { prefix: 'длинн',     label: 'Длинное' },
   { prefix: 'тонк',      label: 'Тонкий материал' },
-  { prefix: 'запах',     label: 'Запах' },
-  { prefix: 'вон',       label: 'Неприятный запах' },
-  { prefix: 'пахн',      label: 'Запах' },
-  { prefix: 'прият',     label: 'Приятный (материал/на ощупь)' },
+  { prefix: 'прият',     label: 'Приятный (материал/ощупь)' },
   { prefix: 'рекоменд',  label: 'Рекомендую' },
   { prefix: 'спасиб',    label: 'Спасибо' },
-  { prefix: 'отлич',     label: 'Отлично' },
-  { prefix: 'хорош',     label: 'Хорошо' },
-  { prefix: 'супер',     label: 'Супер' },
-  { prefix: 'лег',       label: 'Лёгкий (вес/в носке)' },
+  { prefix: 'отлич',     label: 'Понравилось' },
+  { prefix: 'супер',     label: 'Понравилось' },
+  { prefix: 'лег',       label: 'Лёгкий' },
   { prefix: 'ткан',      label: 'Ткань / материал' },
   { prefix: 'плотн',     label: 'Плотность ткани' },
   { prefix: 'растяг',    label: 'Растягивается' },
-  { prefix: 'сел',       label: 'Села (одежда после стирки)' },
-  { prefix: 'усел',      label: 'Села (одежда после стирки)' },
-  { prefix: 'брак',      label: 'Брак' },
-  { prefix: 'разочаров', label: 'Разочарование' },
-  { prefix: 'доставк',   label: 'Доставка' },
-  { prefix: 'упаковк',   label: 'Упаковка' },
-  { prefix: 'дешев',     label: 'Дёшево / цена' },
-  { prefix: 'дорог',     label: 'Дорого' },
+  { prefix: 'доставк',   label: 'Доставка/упаковка' },
+  { prefix: 'упаковк',   label: 'Доставка/упаковка' },
+  { prefix: 'дешев',     label: 'Цена' },
+  { prefix: 'дорог',     label: 'Цена' },
   { prefix: 'тепл',      label: 'Тёплый / тепло' },
   { prefix: 'нос',       label: 'Носки (товар)' },
-  { prefix: 'ног',       label: 'Ноги' },
-  { prefix: 'нож',       label: 'Ноги / ножки' },
-  { prefix: 'ступн',     label: 'Ноги / ступни' },
+  { prefix: 'ног',       label: 'Ноги / стопы' },
+  { prefix: 'нож',       label: 'Ноги / стопы' },
+  { prefix: 'ступн',     label: 'Ноги / стопы' },
   { prefix: 'стоп',      label: 'Ноги / стопы' },
   { prefix: 'натира',    label: 'Натирает' },
-  { prefix: 'жмет',      label: 'Жмёт' },
-  { prefix: 'жм',        label: 'Жмёт' },
-  { prefix: 'свобод',    label: 'Свободно сидит' },
-  { prefix: 'облега',    label: 'Облегает' },
-  { prefix: 'сидит',     label: 'Как сидит' },
-  { prefix: 'налеза',    label: 'Размер: не налезает' },
-  { prefix: 'стяг',      label: 'Стягивает' },
-  { prefix: 'давит',     label: 'Давит' },
-  { prefix: 'дав',       label: 'Давит' },
-  { prefix: 'закаты',    label: 'Закатывается' },
-  { prefix: 'закат',     label: 'Закатывается' },
-  { prefix: 'сваля',     label: 'Сваливается' },
-  { prefix: 'спада',     label: 'Спадает' },
+  { prefix: 'трет',      label: 'Натирает' },
+  { prefix: 'жмет',      label: 'Давит / жмёт' },
+  { prefix: 'жм',        label: 'Давит / жмёт' },
+  { prefix: 'давит',     label: 'Давит / жмёт' },
+  { prefix: 'дав',       label: 'Давит / жмёт' },
+  { prefix: 'тугой',     label: 'Давит / жмёт' },
+  { prefix: 'закаты',    label: 'Закатывается / скручивается' },
+  { prefix: 'закат',     label: 'Закатывается / скручивается' },
   { prefix: 'сполза',    label: 'Сползает' },
-  { prefix: 'трет',      label: 'Трёт / натирает' },
+  { prefix: 'задира',    label: 'Задирается' },
+  { prefix: 'утяг',      label: 'Утягивает' },
+  { prefix: 'возврат',   label: 'Возврат/отказ' },
+  { prefix: 'отказ',     label: 'Возврат/отказ' },
+  { prefix: 'посадк',    label: 'Посадка/как сидит' },
+  { prefix: 'сидит',     label: 'Посадка/как сидит' },
 ];
 
 // Минимальная длина обрубка, при которой мы готовы показать его "как есть",
@@ -1952,7 +1987,10 @@ function normalizeStem(s) {
 }
 
 // Возвращает сгруппированные частоты с учётом синонимов
-function getGroupedWordFreq(indices, topN = 50) {
+// strictMode=true: показываем ТОЛЬКО группы из обученного словаря (Обзор —
+// требуется высокая точность, единичные случайные слова не должны мелькать).
+// strictMode=false: добавляем fallback по стеммам (Текстовый анализ — нужна полнота).
+function getGroupedWordFreq(indices, topN = 50, strictMode = false) {
   const freq = {};
   const src = indices !== null ? indices : STATE.allReviews.map((_, i) => i);
   for (const i of src) {
@@ -1967,6 +2005,8 @@ function getGroupedWordFreq(indices, topN = 50) {
         if (!seen.has(label)) { seen.add(label); freq[label] = (freq[label]||0)+1; }
       }
     }
+
+    if (strictMode) continue; // пропускаем fallback по стеммам
 
     // 2) Fallback: для слов, которых нет в обученном словаре, используем
     // старую группировку по стеммам (с порогом длины, чтобы не плодить мусор)
@@ -2205,10 +2245,29 @@ function renderCharts() {
     }
   }
 
-  // 4. Top problems — используем обученный словарь (как на вкладке Текстовый анализ)
+  // 4. Top problems — используем обученный словарь, strictMode=true:
+  // на Обзоре нужна высокая точность, а не полнота — единичные случайные
+  // слова из неклассифицированного fallback не должны попадать в график.
   destroyChart('topProblems');
   const negIdxsForChart = r.filter(x => (x.productValuation||0) <= 3).map(rv => STATE.allReviews.indexOf(rv));
-  const wf = getGroupedWordFreq(negIdxsForChart, 8);
+  const wf = getGroupedWordFreq(negIdxsForChart, 8, true);
+
+  // Предупреждение при маленькой выборке негативных отзывов — иначе график
+  // выглядит как системная проблема, хотя это просто шум из 1-2 отзывов
+  const topProblemsCard = document.getElementById('chartTopProblems')?.closest('.chart-card');
+  let warnEl = topProblemsCard?.querySelector('.small-sample-warning');
+  if (negIdxsForChart.length > 0 && negIdxsForChart.length < 10) {
+    if (!warnEl && topProblemsCard) {
+      warnEl = document.createElement('div');
+      warnEl.className = 'small-sample-warning';
+      warnEl.style.cssText = 'font-size:11px;color:var(--amber);margin-bottom:8px';
+      topProblemsCard.querySelector('.chart-title')?.after(warnEl);
+    }
+    if (warnEl) warnEl.textContent = `⚠ Малая выборка: всего ${negIdxsForChart.length} негативных отзывов за период`;
+  } else if (warnEl) {
+    warnEl.remove();
+  }
+
   {
     const ctx = document.getElementById('chartTopProblems')?.getContext('2d');
     if (ctx) {
@@ -2820,6 +2879,7 @@ function updateNavDates() {
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+  if (name === 'dictionary') renderDictionaryEditor();
 }
 
 // ─── SCREEN SWITCH ────────────────────────────────────────
@@ -2913,11 +2973,250 @@ window.loadDashboard = async function() {
     showScreen('dashboardScreen');
     updateNavDates();
     loadArticlesCatalog();
+    loadDictionaryFile().then(applyDictOverrides);
     return;
   }
 
   return _origLoad();
 };
+
+// ─── DICTIONARY EDITOR (GitHub-backed shared word dictionary) ──────────────
+// Хранилище: репозиторий DimaDali17/ktr, файл wb-feedback-dictionary.json
+// Структура файла: { groups: {label: [forms]}, pending: [{type, ...}] }
+const DICT_REPO = 'DimaDali17/ktr';
+const DICT_PATH = 'wb-feedback-dictionary.json';
+const DICT_API_URL = `https://api.github.com/repos/${DICT_REPO}/contents/${DICT_PATH}`;
+
+let dictOverrides = null; // загруженный файл из GitHub (если есть)
+let dictFileSha = null;   // нужен для PUT-обновления через GitHub API
+
+function saveGithubToken() {
+  const token = document.getElementById('dictGithubToken').value.trim();
+  if (!token) return;
+  try { localStorage.setItem('ef_gh_token', token); } catch(e) {}
+  updateDictAuthStatus();
+}
+
+function getGithubToken() {
+  try { return localStorage.getItem('ef_gh_token') || document.getElementById('dictGithubToken')?.value.trim() || ''; }
+  catch(e) { return document.getElementById('dictGithubToken')?.value.trim() || ''; }
+}
+
+function updateDictAuthStatus() {
+  const token = getGithubToken();
+  const el = document.getElementById('dictAuthStatus');
+  if (el) el.textContent = token ? '✓ Токен сохранён, можно редактировать' : 'Без токена — только просмотр';
+  const input = document.getElementById('dictGithubToken');
+  if (input && token) input.value = token;
+}
+
+async function loadDictionaryFile() {
+  try {
+    const res = await fetch(DICT_API_URL, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+    if (res.status === 404) {
+      // Файла ещё нет — это нормально, будем работать с базовым словарём
+      dictOverrides = { groups: {}, pending: [] };
+      dictFileSha = null;
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    dictFileSha = json.sha;
+    const content = decodeURIComponent(escape(atob(json.content)));
+    dictOverrides = JSON.parse(content);
+    if (!dictOverrides.groups) dictOverrides.groups = {};
+    if (!dictOverrides.pending) dictOverrides.pending = [];
+  } catch(e) {
+    console.warn('[Dictionary] Не удалось загрузить файл правок:', e.message);
+    dictOverrides = { groups: {}, pending: [] };
+  }
+}
+
+// Применяет overrides (принятые правки) поверх базового обученного словаря.
+// Вызывается один раз после загрузки dictOverrides.
+function applyDictOverrides() {
+  if (!dictOverrides || !dictOverrides.groups) return;
+  for (const [label, forms] of Object.entries(dictOverrides.groups)) {
+    for (const f of forms) {
+      WORD_FORM_TO_GROUP[f] = label;
+    }
+  }
+}
+
+async function saveDictionaryFile(commitMessage) {
+  const token = getGithubToken();
+  if (!token) { alert('Нужен GitHub токен для сохранения'); return false; }
+
+  try {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(dictOverrides, null, 2))));
+    const body = {
+      message: commitMessage || 'EasyForm: обновление словаря отзывов',
+      content: content,
+    };
+    if (dictFileSha) body.sha = dictFileSha;
+
+    const res = await fetch(DICT_API_URL, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || `HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    dictFileSha = json.content.sha;
+    return true;
+  } catch(e) {
+    alert('Ошибка сохранения в GitHub: ' + e.message);
+    return false;
+  }
+}
+
+// Добавить слово в существующую (или новую) группу — сохраняется как pending
+function proposeAddWord(label, word) {
+  if (!dictOverrides) return;
+  dictOverrides.pending.push({
+    type: 'add_word', label, word,
+    proposedAt: new Date().toISOString(),
+  });
+  renderDictionaryEditor();
+  saveDictionaryFile(`Предложение: добавить "${word}" в группу "${label}"`);
+}
+
+// Переименовать группу — сохраняется как pending
+function proposeRenameGroup(oldLabel, newLabel) {
+  if (!dictOverrides || !newLabel || oldLabel === newLabel) return;
+  dictOverrides.pending.push({
+    type: 'rename_group', oldLabel, newLabel,
+    proposedAt: new Date().toISOString(),
+  });
+  renderDictionaryEditor();
+  saveDictionaryFile(`Предложение: переименовать "${oldLabel}" → "${newLabel}"`);
+}
+
+// Принять pending-правку — применяет её к groups и убирает из pending
+async function acceptPendingChange(idx) {
+  const change = dictOverrides.pending[idx];
+  if (!change) return;
+
+  if (change.type === 'add_word') {
+    if (!dictOverrides.groups[change.label]) dictOverrides.groups[change.label] = [];
+    if (!dictOverrides.groups[change.label].includes(change.word)) {
+      dictOverrides.groups[change.label].push(change.word);
+    }
+    WORD_FORM_TO_GROUP[change.word] = change.label;
+  } else if (change.type === 'rename_group') {
+    // Переносим все словоформы из старого ярлыка в новый
+    for (const [w, label] of Object.entries(WORD_FORM_TO_GROUP)) {
+      if (label === change.oldLabel) WORD_FORM_TO_GROUP[w] = change.newLabel;
+    }
+    if (!dictOverrides.groups[change.newLabel]) dictOverrides.groups[change.newLabel] = [];
+    if (dictOverrides.groups[change.oldLabel]) {
+      dictOverrides.groups[change.newLabel].push(...dictOverrides.groups[change.oldLabel]);
+      delete dictOverrides.groups[change.oldLabel];
+    }
+  }
+
+  dictOverrides.pending.splice(idx, 1);
+  renderDictionaryEditor();
+  await saveDictionaryFile(`Принято: ${change.type} (${change.label || change.oldLabel})`);
+}
+
+function rejectPendingChange(idx) {
+  dictOverrides.pending.splice(idx, 1);
+  renderDictionaryEditor();
+  saveDictionaryFile('Отклонена правка словаря');
+}
+
+function getAllGroupsWithCounts() {
+  const groupWords = {};
+  for (const [word, label] of Object.entries(WORD_FORM_TO_GROUP)) {
+    if (!groupWords[label]) groupWords[label] = [];
+    groupWords[label].push(word);
+  }
+  // Реальные частоты по текущей выборке (если данные загружены)
+  const freq = STATE.allReviews?.length ? getGroupedWordFreq(null, 9999, false) : [];
+  const freqMap = Object.fromEntries(freq.map(f => [f.word, f.count]));
+  return Object.entries(groupWords)
+    .map(([label, words]) => ({ label, words, count: freqMap[label] || 0 }))
+    .sort((a,b) => b.count - a.count);
+}
+
+function renderDictionaryEditor() {
+  updateDictAuthStatus();
+  const listEl = document.getElementById('dictGroupsList');
+  if (!listEl) return;
+
+  const query = (document.getElementById('dictSearchInput')?.value || '').trim().toLowerCase();
+  const groups = getAllGroupsWithCounts().filter(g =>
+    !query || g.label.toLowerCase().includes(query) || g.words.some(w => w.includes(query))
+  );
+
+  const hasToken = !!getGithubToken();
+
+  listEl.innerHTML = groups.slice(0, 60).map(g => `
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <strong style="font-size:14px">${escHtml(g.label)}</strong>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink3)">${g.count} упоминаний · ${g.words.length} словоформ</span>
+        ${hasToken ? `<button class="btn-detail" style="margin-left:auto;font-size:11px;padding:3px 10px" onclick="promptRenameGroup('${escAttr(g.label)}')">Переименовать</button>` : ''}
+      </div>
+      <div style="font-size:12px;color:var(--ink3);line-height:1.6">${g.words.slice(0,20).map(escHtml).join(', ')}${g.words.length>20?` … +${g.words.length-20}`:''}</div>
+      ${hasToken ? `
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input type="text" placeholder="Добавить слово в эту группу..." id="addword-${escAttr(g.label)}"
+          style="flex:1;font-size:12px;padding:5px 8px;background:var(--card);border:1px solid var(--border);border-radius:6px" />
+        <button class="btn-apply" style="font-size:11px" onclick="promptAddWord('${escAttr(g.label)}')">+ Добавить</button>
+      </div>` : ''}
+    </div>
+  `).join('');
+
+  // Pending changes
+  const pendingSection = document.getElementById('dictPendingSection');
+  const pendingList = document.getElementById('dictPendingList');
+  const pending = dictOverrides?.pending || [];
+  if (pending.length > 0 && pendingSection && pendingList) {
+    pendingSection.style.display = 'block';
+    pendingList.innerHTML = pending.map((c, i) => {
+      const desc = c.type === 'add_word'
+        ? `Добавить «${escHtml(c.word)}» в группу «${escHtml(c.label)}»`
+        : `Переименовать «${escHtml(c.oldLabel)}» → «${escHtml(c.newLabel)}»`;
+      return `
+        <div style="display:flex;align-items:center;gap:10px;background:var(--amber-bg);border:1px solid #F9E79F;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px">
+          <span style="flex:1">${desc}</span>
+          ${hasToken ? `
+            <button class="btn-detail" style="font-size:11px;padding:3px 10px" onclick="acceptPendingChange(${i})">Принять</button>
+            <button class="btn-detail" style="font-size:11px;padding:3px 10px;color:var(--red)" onclick="rejectPendingChange(${i})">Отклонить</button>
+          ` : ''}
+        </div>`;
+    }).join('');
+  } else if (pendingSection) {
+    pendingSection.style.display = 'none';
+  }
+}
+
+function promptAddWord(label) {
+  const input = document.getElementById(`addword-${label}`);
+  const word = input?.value.trim().toLowerCase();
+  if (!word) return;
+  proposeAddWord(label, word);
+  if (input) input.value = '';
+}
+
+function promptRenameGroup(oldLabel) {
+  const newLabel = prompt(`Новое название для группы «${oldLabel}»:`, oldLabel);
+  if (newLabel && newLabel.trim() && newLabel.trim() !== oldLabel) {
+    proposeRenameGroup(oldLabel, newLabel.trim());
+  }
+}
 
 // ─── ARTICLES CATALOG (Google Sheets CSV) ──────────────────────────────────
 const ARTICLES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRv2VuvAbmweu5Q_5cj-zoss2s3RoFMwKfK2z6tp22oG7FFfNGvoR8LYAyv56tvnvdJc6wouLBaYpph/pub?gid=612792464&single=true&output=csv';
@@ -3042,10 +3341,12 @@ function renderFilterChips() {
   const filters = STATE.articleFilters || [];
   if (filters.length === 0) {
     bar.style.display = 'none';
+    document.body.classList.remove('has-active-filter');
     return;
   }
 
   bar.style.display = 'flex';
+  document.body.classList.add('has-active-filter');
   chipsEl.innerHTML = filters.map((a, i) => `
     <span class="filter-chip">${escHtml(a)}<span class="chip-x" onclick="removeArticleFilter(${i})">×</span></span>
   `).join('');
@@ -3081,6 +3382,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('DOMContentLoaded', () => {
   setDefaultDates();
   loadSettings();
+  updateDictAuthStatus();
 });
 
 </script>
