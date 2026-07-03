@@ -1226,6 +1226,12 @@ canvas { max-height: 240px; }
     <!-- ────────── TAB: TEXT ANALYSIS ────────── -->
     <div id="tab-textanalysis" class="tab-content">
 
+      <!-- Пояснительная статистика покрытия словаря -->
+      <div id="textAnalysisMeta" style="
+        background:var(--card2);border:1px solid var(--border);border-radius:var(--radius-sm);
+        padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--ink2);line-height:1.7
+      "></div>
+
       <!-- Группированный анализ проблем -->
       <div class="analysis-grid" style="margin-bottom:14px">
         <div class="analysis-card">
@@ -2616,16 +2622,66 @@ function sortProducts(col) {
 
 // ─── TEXT ANALYSIS ────────────────────────────────────────
 function renderTextAnalysis() {
-  const negIdxs = STATE.filtered
-    .filter(rv => (rv.productValuation||0) <= 3)
-    .map(rv => STATE.allReviews.indexOf(rv));
+  const total = STATE.filtered.length;
+  const negRevs = STATE.filtered.filter(rv => (rv.productValuation||0) >= 1 && (rv.productValuation||0) <= 4);
+  const posRevs = STATE.filtered.filter(rv => (rv.productValuation||0) === 5);
 
-  const posIdxs = STATE.filtered
-    .filter(rv => (rv.productValuation||0) >= 4)
-    .map(rv => STATE.allReviews.indexOf(rv));
+  // Индексы для подсчёта частот
+  const negIdxs = negRevs.map(rv => STATE.allReviews.findIndex(r => r.id === rv.id)).filter(i => i >= 0);
+  const posIdxs = posRevs.map(rv => STATE.allReviews.findIndex(r => r.id === rv.id)).filter(i => i >= 0);
 
   const negWords = getGroupedWordFreq(negIdxs, 50, false, 'neg');
   const posWords = getGroupedWordFreq(posIdxs, 50, false, 'pos');
+
+  // Считаем покрытие: сколько отзывов попало хотя бы в одну neg/pos группу
+  const negLabelsSet = new Set(negWords.map(w => w.word));
+  const posLabelsSet = new Set(posWords.map(w => w.word));
+
+  let coveredNeg = 0, coveredPos = 0;
+  for (let i of negIdxs) {
+    const rv = STATE.allReviews[i];
+    const rawToks = STATE.rawTokens?.[i] || [];
+    const hasNegMatch = rawToks.some(w => {
+      const lbl = USER_WORD_GROUPS[w] || WORD_FORM_TO_GROUP[w];
+      return lbl && NEG_LABELS.has(lbl);
+    });
+    if (hasNegMatch) coveredNeg++;
+  }
+  for (let i of posIdxs) {
+    const rv = STATE.allReviews[i];
+    const rawToks = STATE.rawTokens?.[i] || [];
+    const hasPosMatch = rawToks.some(w => {
+      const lbl = USER_WORD_GROUPS[w] || WORD_FORM_TO_GROUP[w];
+      return lbl && POS_LABELS.has(lbl);
+    });
+    if (hasPosMatch) coveredPos++;
+  }
+
+  const negPct = negRevs.length ? Math.round(coveredNeg / negRevs.length * 100) : 0;
+  const posPct = posRevs.length ? Math.round(coveredPos / posRevs.length * 100) : 0;
+
+  // Суммы упоминаний (один отзыв может попасть в несколько групп)
+  const negMentions = negWords.reduce((s, w) => s + w.count, 0);
+  const posMentions = posWords.reduce((s, w) => s + w.count, 0);
+
+  const meta = document.getElementById('textAnalysisMeta');
+  if (meta) {
+    meta.innerHTML = `
+      <strong>Как читать эти данные:</strong> цифры = количество <em>отзывов</em> содержащих слова из группы
+      (не слов — если «резинка» упомянута 3 раза в одном отзыве, это всё равно +1).
+      Один отзыв может попасть в несколько групп одновременно.<br>
+      <span style="color:var(--red)">🔴 Негативных отзывов (1-4★): <strong>${negRevs.length}</strong>
+        — словарь распознал <strong>${coveredNeg}</strong> (${negPct}%),
+        суммарно <strong>${negMentions}</strong> упоминаний по ${negWords.length} группам.</span><br>
+      <span style="color:var(--green)">🟢 Позитивных отзывов (5★): <strong>${posRevs.length}</strong>
+        — словарь распознал <strong>${coveredPos}</strong> (${posPct}%),
+        суммарно <strong>${posMentions}</strong> упоминаний по ${posWords.length} группам.</span><br>
+      <span style="color:var(--ink3);font-size:12px">
+        Не распознанные: ${negRevs.length - coveredNeg} негативных и ${posRevs.length - coveredPos} позитивных —
+        пишут «всё отлично», «супер» или не оставляют текста. Расширяйте словарь через вкладку «Словарь групп».
+      </span>
+    `;
+  }
 
   renderCollapsibleWordCloud('negGroupedWords', 'negShowMoreBtn', negWords, 'neg', expandedLists.neg);
   renderCollapsibleWordCloud('posGroupedWords', 'posShowMoreBtn', posWords, 'pos', expandedLists.pos);
@@ -3586,6 +3642,6 @@ window.addEventListener('DOMContentLoaded', () => {
   font-family:Courier New,monospace;font-size:10px;
   padding:3px 8px;border-radius:4px;pointer-events:none;
   letter-spacing:0.5px;
-">v48</div>
+">v49</div>
 </body>
 </html>
