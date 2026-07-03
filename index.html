@@ -2733,7 +2733,35 @@ function openGroupDetail(label, count, contextReviews, sentiment) {
       matched = rawTokens.some(w => w.includes(label) || stem(w).includes(stemQuery));
     }
 
-    if (matched) matchingReviews.push(rv);
+    if (!matched) continue;
+
+    // Для негативной панели: дополнительно проверяем что слово встречается
+    // в поле "Недостатки" (cons) ИЛИ рядом с негативными маркерами в тексте.
+    // Это отсекает случаи когда клиент в 4★ отзыве хвалит этот аспект
+    // ("резинка прочная, не жмёт"), но ругает что-то другое.
+    if (sentiment === 'neg') {
+      const consText = (rv.cons || '').toLowerCase();
+      const fullText = (rv.text || '').toLowerCase();
+
+      // Проверяем есть ли словоформа группы в поле "Недостатки"
+      const inCons = [...forms].some(f => consText.includes(f));
+
+      // Или есть ли рядом с формой негативный контекст в общем тексте
+      // (слова-маркеры проблемы: "тугой", "слабая", "рвётся", "плохо" и т.д.)
+      const NEG_CONTEXT = ['туго','тугой','слаб','рвёт','рвётся','плохо','плохая','жмёт','давит','режет','натира','трёт'];
+      const hasNegContext = NEG_CONTEXT.some(nc =>
+        fullText.includes(nc) && [...forms].some(f => {
+          // слово из группы и негативный маркер в одном предложении
+          const sentences = fullText.split(/[.!?]/);
+          return sentences.some(s => s.includes(f) && s.includes(nc));
+        })
+      );
+
+      // Показываем только если слово в cons ИЛИ с негативным контекстом
+      if (!inCons && !hasNegContext) continue;
+    }
+
+    matchingReviews.push(rv);
   }
 
   document.getElementById('wdpTitle').textContent =
@@ -2751,10 +2779,15 @@ function openGroupDetail(label, count, contextReviews, sentiment) {
     ${isGroup ? `<br><span style="font-size:11px;color:var(--ink3)">Словоформы: ${[...forms].slice(0,10).join(', ')}${forms.size>10?` +${forms.size-10}`:''}</span>` : ''}
   `;
 
-  // Подсветка — ищем первую совпавшую словоформу для highlight
+  // Подсветка — подсвечиваем первую найденную словоформу
   const container = document.getElementById('wdpReviews');
   container.innerHTML = '';
   const highlightWord = isGroup ? [...forms][0] : label;
+
+  // DEBUG: показываем реальный рейтинг каждого отзыва для диагностики
+  const debugRatings = matchingReviews.slice(0,5).map(r => r.productValuation).join(', ');
+  console.log(`[openGroupDetail] sentiment=${sentiment}, ratings found:`, debugRatings);
+
   for (const rv of matchingReviews.slice(0, 60)) {
     container.appendChild(makeReviewCard(rv, highlightWord));
   }
@@ -3547,5 +3580,12 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 </script>
+<div id="version-badge" style="
+  position:fixed;bottom:10px;right:10px;z-index:9999;
+  background:rgba(26,24,20,0.7);color:#fff;
+  font-family:Courier New,monospace;font-size:10px;
+  padding:3px 8px;border-radius:4px;pointer-events:none;
+  letter-spacing:0.5px;
+">v48</div>
 </body>
 </html>
