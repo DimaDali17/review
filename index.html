@@ -1889,6 +1889,7 @@ function processData() {
   STATE.wordIndex = {};
   STATE.stems = [];
 
+  STATE.idToIdx = {};  // быстрый маппинг id → индекс в allReviews
   STATE.rawTokens = [];
   for (let i = 0; i < reviews.length; i++) {
     const r = reviews[i];
@@ -1896,6 +1897,7 @@ function processData() {
     const tokens = [...new Set(tokenize(fullText))];
     STATE.stems.push(tokens);
     STATE.rawTokens.push([...new Set(tokenizeRaw(fullText))]);
+    if (r.id) STATE.idToIdx[r.id] = i;
     for (const t of tokens) {
       if (!STATE.wordIndex[t]) STATE.wordIndex[t] = [];
       STATE.wordIndex[t].push(i);
@@ -2626,9 +2628,10 @@ function renderTextAnalysis() {
   const negRevs = STATE.filtered.filter(rv => (rv.productValuation||0) >= 1 && (rv.productValuation||0) <= 4);
   const posRevs = STATE.filtered.filter(rv => (rv.productValuation||0) === 5);
 
-  // Индексы для подсчёта частот
-  const negIdxs = negRevs.map(rv => STATE.allReviews.findIndex(r => r.id === rv.id)).filter(i => i >= 0);
-  const posIdxs = posRevs.map(rv => STATE.allReviews.findIndex(r => r.id === rv.id)).filter(i => i >= 0);
+  // Индексы для подсчёта частот — используем быстрый маппинг id→idx
+  // (findIndex был медленный и терял merged-копии с изменённым id)
+  const negIdxs = negRevs.map(rv => STATE.idToIdx[rv.id] ?? -1).filter(i => i >= 0);
+  const posIdxs = posRevs.map(rv => STATE.idToIdx[rv.id] ?? -1).filter(i => i >= 0);
 
   const negWords = getGroupedWordFreq(negIdxs, 50, false, 'neg');
   const posWords = getGroupedWordFreq(posIdxs, 50, false, 'pos');
@@ -2639,7 +2642,6 @@ function renderTextAnalysis() {
 
   let coveredNeg = 0, coveredPos = 0;
   for (let i of negIdxs) {
-    const rv = STATE.allReviews[i];
     const rawToks = STATE.rawTokens?.[i] || [];
     const hasNegMatch = rawToks.some(w => {
       const lbl = USER_WORD_GROUPS[w] || WORD_FORM_TO_GROUP[w];
@@ -2648,7 +2650,6 @@ function renderTextAnalysis() {
     if (hasNegMatch) coveredNeg++;
   }
   for (let i of posIdxs) {
-    const rv = STATE.allReviews[i];
     const rawToks = STATE.rawTokens?.[i] || [];
     const hasPosMatch = rawToks.some(w => {
       const lbl = USER_WORD_GROUPS[w] || WORD_FORM_TO_GROUP[w];
@@ -2773,10 +2774,8 @@ function openGroupDetail(label, count, contextReviews, sentiment) {
   for (const rv of ratingFilteredPool) {
     if (!rv.id) continue;
 
-    // Находим индекс в STATE.allReviews для доступа к rawTokens
-    const idx = STATE.allReviews.findIndex(r => r.id === rv.id);
+    const idx = STATE.idToIdx?.[rv.id] ?? -1;
     if (idx < 0) continue;
-
     const rawTokens = STATE.rawTokens?.[idx] || [];
     let matched = false;
 
@@ -3642,6 +3641,6 @@ window.addEventListener('DOMContentLoaded', () => {
   font-family:Courier New,monospace;font-size:10px;
   padding:3px 8px;border-radius:4px;pointer-events:none;
   letter-spacing:0.5px;
-">v49</div>
+">v50</div>
 </body>
 </html>
