@@ -2032,6 +2032,12 @@ const USER_WORD_GROUPS = {"дырка":"Дырка / дыры","коротков
 // Если слово встречается в rawTokens но нет ни в USER_NEG_WORDS ни в USER_POS_WORDS —
 // смотрим на рейтинг текущего отзыва и применяем порог 70%
 
+// Группы классифицированные как негативные (по пользовательской разметке)
+const NEG_LABELS = new Set(["Давит / жмёт", "Дырка / дыры", "Задирается", "Закатывается / скручивается", "Катышки (пилинг ткани)", "Короткое", "Нитки торчат/брак", "Размер: маломерит", "Резинка", "Синтетика", "Скатывается / катышки", "Сползает", "Сползает / скатывается", "Тёплый / тепло", "Холодно / мёрзнут", "Шов / швы", "Шов разошёлся"]);
+
+// Группы классифицированные как позитивные
+const POS_LABELS = new Set(["Давит / жмёт", "Жарко / потеет", "Качество", "Красивый", "Лёгкий", "Мягкость", "Натирает", "Не дышит / дышит", "Нежный", "Плотность ткани", "Понравилось", "Приятный (материал/ощупь)", "Растягивается", "Рекомендую", "Ткань / материал", "Тонкий материал", "Тёплый / тепло", "Удобство", "Утягивает"]);
+
 // sentiment: 'neg' | 'pos' | null
 function getGroupedWordFreq(indices, topN = 50, strictMode = false, sentiment = null) {
   const freq = {};
@@ -2055,16 +2061,21 @@ function getGroupedWordFreq(indices, topN = 50, strictMode = false, sentiment = 
       if (!label) continue;
       if (seen.has(label)) continue;
 
-      // ГЛАВНЫЙ ЗАКОН: рейтинг перевешивает разметку
+      // ГЛАВНЫЙ ЗАКОН: рейтинг перевешивает разметку.
+      // Проверяем по ГРУППЕ (label), а не по конкретной словоформе (w),
+      // потому что USER_NEG/POS_WORDS содержат леммы («резинка»), а rawTokens
+      // содержат словоформы («резинку», «резинкой»).
+      // Группа считается neg если хотя бы одна из её лемм в USER_NEG_WORDS.
       if (sentiment === 'neg') {
-        // В негативном топе: слово должно быть в USER_NEG_WORDS И отзыв 1-4★
-        if (!USER_NEG_WORDS.has(w)) continue;
-        if (!is14star) continue; // NEG-слово в 5★ — игнорируем
+        // Группа neg только если у неё есть neg-лемма И отзыв 1-4★
+        const labelIsNeg = NEG_LABELS.has(label);
+        if (!labelIsNeg) continue;
+        if (!is14star) continue;
       }
       if (sentiment === 'pos') {
-        // В позитивном топе: слово должно быть в USER_POS_WORDS И отзыв 5★
-        if (!USER_POS_WORDS.has(w)) continue;
-        if (!is5star) continue; // POS-слово в 1-4★ — игнорируем
+        const labelIsPos = POS_LABELS.has(label);
+        if (!labelIsPos) continue;
+        if (!is5star) continue;
       }
       if (sentiment === null) {
         // Общий подсчёт (текстовый анализ): применяем 70%-правило
@@ -2702,10 +2713,13 @@ function openGroupDetail(label, count, contextReviews, sentiment) {
   const poolIdSet = new Set(ratingFilteredPool.map(rv => rv.id).filter(Boolean));
 
   const matchingReviews = [];
-  for (let idx = 0; idx < STATE.allReviews.length; idx++) {
-    const rv = STATE.allReviews[idx];
-    // Пропускаем отзывы не из текущего pool
-    if (!poolIdSet.has(rv.id)) continue;
+  // Итерируем по ratingFilteredPool напрямую — гарантирует правильный рейтинг
+  for (const rv of ratingFilteredPool) {
+    if (!rv.id) continue;
+
+    // Находим индекс в STATE.allReviews для доступа к rawTokens
+    const idx = STATE.allReviews.findIndex(r => r.id === rv.id);
+    if (idx < 0) continue;
 
     const rawTokens = STATE.rawTokens?.[idx] || [];
     let matched = false;
@@ -2719,11 +2733,7 @@ function openGroupDetail(label, count, contextReviews, sentiment) {
       matched = rawTokens.some(w => w.includes(label) || stem(w).includes(stemQuery));
     }
 
-    if (matched) {
-      // Возвращаем объект из pool (может быть merged версия с текстом дочернего)
-      const poolRv = ratingFilteredPool.find(r => r.id === rv.id) || rv;
-      matchingReviews.push(poolRv);
-    }
+    if (matched) matchingReviews.push(rv);
   }
 
   document.getElementById('wdpTitle').textContent =
